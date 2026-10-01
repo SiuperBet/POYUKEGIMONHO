@@ -75,7 +75,7 @@ function scoreSurface(image:ImageData){
 function detectSurfaceDefects(image:ImageData){
   const {width,height,data}=image;
   const step=Math.max(2,Math.floor(Math.min(width,height)/240));
-  let scratch=0,crease=0,dent=0,white=0,texture=0,n=0;
+  let scratch=0,dent=0,white=0,texture=0,n=0;
   const samples=Math.max(12,Math.floor(Math.min(width,height)/28));
   const lineHitsH=new Array(samples).fill(0),lineHitsV=new Array(samples).fill(0);
   for(let y=3;y<height-3;y+=step){
