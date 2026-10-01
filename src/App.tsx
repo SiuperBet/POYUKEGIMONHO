@@ -40,7 +40,7 @@ export default function App(){
  const [grade,setGrade]=useState<GradeResult|null>(null),[selected,setSelected]=useState<CatalogCard|null>(null);
  const [manualQuery,setManualQuery]=useState(''),[error,setError]=useState('');
  const videoRef=useRef<HTMLVideoElement>(null),stageRef=useRef<HTMLDivElement>(null),streamRef=useRef<MediaStream|null>(null),dragging=useRef<number|null>(null);
- const autoTimer=useRef<number|null>(null),autoStable=useRef(0),capturedRef=useRef(false);
+ const autoTimer=useRef<number|null>(null),autoStable=useRef(0),capturedRef=useRef(false),detectedCornersRef=useRef<Point[]|null>(null);
 
  useEffect(()=>()=>{streamRef.current?.getTracks().forEach(t=>t.stop());if(preview)URL.revokeObjectURL(preview);if(autoTimer.current)clearInterval(autoTimer.current)},[preview]);
  useEffect(()=>{saveCollection(collection)},[collection]);
@@ -65,7 +65,7 @@ export default function App(){
  }
  function stopCamera(){streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setCameraOn(false)}
  function resetScan(){
-  stopCamera();setPreview(old=>{if(old)URL.revokeObjectURL(old);return null});setPreviewData(null);setCorners(initialCorners);setRecognition([]);setSelected(null);setGrade(null);setOcrText('');setOcrConfidence(0);setQuality(null);setError('');setStability({good:0,bad:0,state:'searching'});capturedRef.current=false;autoStable.current=0;
+  stopCamera();setPreview(old=>{if(old)URL.revokeObjectURL(old);return null});setPreviewData(null);setCorners(initialCorners);detectedCornersRef.current=null;setRecognition([]);setSelected(null);setGrade(null);setOcrText('');setOcrConfidence(0);setQuality(null);setError('');setStability({good:0,bad:0,state:'searching'});capturedRef.current=false;autoStable.current=0;
  }
  function openScan(){resetScan();setPage('scan');void startCamera()}
 
@@ -154,11 +154,16 @@ export default function App(){
    const frame=c.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,c.width,c.height);if(!frame)return;
    const detected=detectCardQuad(frame);
    if(detected&&detected.confidence>.62){
-    setCorners(detected.points);setStability(s=>updateQuadStability(s,true));
+    const previous=detectedCornersRef.current;
+    const smoothed=previous&&previous.length===4
+      ?detected.points.map((p,i)=>({x:previous[i].x*.45+p.x*.55,y:previous[i].y*.45+p.y*.55}))
+      :detected.points;
+    detectedCornersRef.current=smoothed;
+    setCorners(smoothed);setStability(s=>updateQuadStability(s,true));
     const level=getDeviceLevel();setDeviceLevel(level);
     autoStable.current=level.available&&level.tilt>8?0:autoStable.current+1;
-    if(detected.confidence>.70&&autoStable.current>=4&&(!level.available||level.tilt<=8)){autoStable.current=0;void processCanvas(c,detected.points)}
-   }else{autoStable.current=0;setStability(s=>updateQuadStability(s,false))}
+    if(detected.confidence>.70&&autoStable.current>=4&&(!level.available||level.tilt<=8)){autoStable.current=0;void processCanvas(c,smoothed)}
+   }else{autoStable.current=0;detectedCornersRef.current=null;setStability(s=>updateQuadStability(s,false))}
   },500);
   return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}
  },[cameraOn,auto]);
