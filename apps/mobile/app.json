@@ -1,0 +1,7 @@
+{
+  "expo":{"name":"POYUKEGIMONHO","slug":"poyukegimonho","version":"0.1.0","orientation":"portrait","userInterfaceStyle":"automatic","scheme":"poyukegimonho",
+    "ios":{"supportsTablet":true,"infoPlist":{"NSCameraUsageDescription":"Usiamo la fotocamera per scansionare le carte.","NSMotionUsageDescription":"Usiamo i sensori di orientamento per mantenere la carta allineata."}},
+    "android":{"permissions":["CAMERA","VIBRATE"]},
+    "plugins":[["react-native-vision-camera",{"cameraPermissionText":"Consenti a POYUKEGIMONHO di usare la fotocamera per scansionare le carte."}]]
+  }
+}
