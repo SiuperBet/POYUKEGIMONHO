@@ -89,8 +89,10 @@ export function detectCardQuad(image:ImageData):DetectedQuad|null{
     if(pts.some(p=>!p||p.x<0||p.x>w||p.y<0||p.y>h))continue;
     const points=pts as Point[],m=quadMetrics(points,w,h);
     const area=Math.abs(points.reduce((s,p,i)=>{const q=points[(i+1)%4];return s+p.x*q.y-q.x*p.y},0))/2;
-    const ratio=Math.min(m.aspect/0.72,0.72/m.aspect);
-    if(ratio<.5||m.parallel>.34)continue;
+    const targetAspect=.714;
+    const aspectFit=Math.min(m.aspect/targetAspect,targetAspect/m.aspect);
+    const ratio=aspectFit;
+    if(ratio<.86||m.parallel>.22)continue;
     const coverage=Math.min(1,area/(w*h*.16));
     const score=(top.score+bottom.score+left.score+right.score)*ratio*coverage*(1-m.parallel*.65);
     if(!best||score>best.score)best={top,bottom,left,right,score,theta:t,perp};
@@ -103,7 +105,9 @@ export function detectCardQuad(image:ImageData):DetectedQuad|null{
  if(pts.some(p=>!p))return null;
  const points=pts as Point[];
  const metrics=quadMetrics(points,w,h);
- const confidence=Math.min(1,.45+Math.min(.28,best.score/52000)+Math.min(.17,edges.length/(w*h)*5)+Math.max(0,.1-metrics.parallel*.2));
+ const targetAspect=.714;
+ const aspectFit=Math.min(metrics.aspect/targetAspect,targetAspect/metrics.aspect);
+ const confidence=Math.min(1,.40+Math.min(.30,best.score/52000)+Math.min(.16,edges.length/(w*h)*5)+Math.max(0,.10-metrics.parallel*.25)+Math.max(0,(aspectFit-.86)*.75));
  return {points:points.map(p=>({x:p.x/w*100,y:p.y/h*100})),confidence};
 }
 
@@ -114,7 +118,7 @@ function solve8(a:number[][],b:number[]):number[]{
 }
 export function perspectiveWarp(source:HTMLCanvasElement,points:Point[],outW=480,outH=672){
  const center=points.reduce((a,p)=>({x:a.x+p.x/4,y:a.y+p.y/4}),{x:0,y:0});
- const expanded=points.map(p=>({x:Math.max(0,Math.min(100,center.x+(p.x-center.x)*1.045)),y:Math.max(0,Math.min(100,center.y+(p.y-center.y)*1.045))}));
+ const expanded=points.map(p=>({x:Math.max(0,Math.min(100,center.x+(p.x-center.x)*1.015)),y:Math.max(0,Math.min(100,center.y+(p.y-center.y)*1.015))}));
  const src=expanded.map(p=>({x:p.x/100*source.width,y:p.y/100*source.height}));
  const dst=[{x:0,y:0},{x:outW-1,y:0},{x:outW-1,y:outH-1},{x:0,y:outH-1}];
  const a:number[][]=[],b:number[]=[];
