@@ -44,7 +44,7 @@ export default function App(){
  const [grade,setGrade]=useState<GradeResult|null>(null),[selected,setSelected]=useState<CatalogCard|null>(null);
  const [manualQuery,setManualQuery]=useState(''),[error,setError]=useState('');
  const videoRef=useRef<HTMLVideoElement>(null),stageRef=useRef<HTMLDivElement>(null),streamRef=useRef<MediaStream|null>(null),dragging=useRef<number|null>(null),galleryInputRef=useRef<HTMLInputElement>(null);
- const autoTimer=useRef<number|null>(null),autoStable=useRef(0),capturedRef=useRef(false),detectedCornersRef=useRef<Point[]|null>(null);
+ const autoTimer=useRef<number|null>(null),autoStable=useRef(0),capturedRef=useRef(false),detectedCornersRef=useRef<Point[]|null>(null),detectionMisses=useRef(0);
 
  useEffect(()=>()=>{streamRef.current?.getTracks().forEach(t=>t.stop());if(preview)URL.revokeObjectURL(preview);if(autoTimer.current)clearInterval(autoTimer.current)},[preview]);
  useEffect(()=>{saveCollection(collection)},[collection]);
@@ -173,17 +173,33 @@ function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
    const c=sourceCanvas();if(!c)return;
    const frame=c.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,c.width,c.height);if(!frame)return;
    const detected=detectCardQuad(frame);
-   if(detected&&detected.confidence>.62){
-    const previous=detectedCornersRef.current;
+   const previous=detectedCornersRef.current;
+   let usable=detected&&detected.confidence>.76?detected:null;
+   if(usable&&previous){
+    const prevCx=previous.reduce((s,p)=>s+p.x,0)/4,prevCy=previous.reduce((s,p)=>s+p.y,0)/4;
+    const nextCx=usable.points.reduce((s,p)=>s+p.x,0)/4,nextCy=usable.points.reduce((s,p)=>s+p.y,0)/4;
+    const displacement=Math.hypot(nextCx-prevCx,nextCy-prevCy);
+    const prevH=Math.max(previous[2].y-previous[0].y,previous[3].y-previous[1].y);
+    const nextH=Math.max(usable.points[2].y-usable.points[0].y,usable.points[3].y-usable.points[1].y);
+    const scaleChange=Math.max(nextH,1)/Math.max(prevH,1);
+    if(displacement>11||scaleChange>1.35||scaleChange<.74)usable=null;
+   }
+   if(usable){
+    detectionMisses.current=0;
     const smoothed=previous&&previous.length===4
-      ?detected.points.map((p,i)=>({x:previous[i].x*.45+p.x*.55,y:previous[i].y*.45+p.y*.55}))
-      :detected.points;
+      ?usable.points.map((p,i)=>({x:previous[i].x*.35+p.x*.65,y:previous[i].y*.35+p.y*.65}))
+      :usable.points;
     detectedCornersRef.current=smoothed;
     setCorners(smoothed);setStability(s=>updateQuadStability(s,true));
     const level=getDeviceLevel();setDeviceLevel(level);
-    autoStable.current=level.available&&level.tilt>8?0:autoStable.current+1;
-    if(auto&&detected.confidence>.70&&autoStable.current>=4&&(!level.available||level.tilt<=8)){autoStable.current=0;void processCanvas(c,smoothed)}
-   }else{autoStable.current=0;detectedCornersRef.current=null;setStability(s=>updateQuadStability(s,false))}
+    const motionStable=previous?Math.max(...smoothed.map((p,i)=>Math.hypot(p.x-(previous[i]?.x??p.x),p.y-(previous[i]?.y??p.y))))<4:true;
+    autoStable.current=level.available&&level.tilt>8?0:(motionStable?autoStable.current+1:0);
+    if(auto&&usable.confidence>.82&&autoStable.current>=8&&(!level.available||level.tilt<=8)){autoStable.current=0;void processCanvas(c,smoothed)}
+   }else{
+    detectionMisses.current++;
+    autoStable.current=0;
+    if(detectionMisses.current>=3){detectedCornersRef.current=null;setStability(s=>updateQuadStability(s,false));}
+   }
   },500);
   return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}
  },[cameraOn,auto]);
