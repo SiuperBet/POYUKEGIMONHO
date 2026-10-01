@@ -76,8 +76,7 @@ export async function searchPokemon(query:string):Promise<CatalogCard[]>{
 export async function getPokemonSetCards(setId:string):Promise<CatalogCard[]>{
   const set=await getJson<any>(`https://api.tcgdex.net/v2/en/sets/${encodeURIComponent(setId)}`);
   const rows=Array.isArray(set.cards)?set.cards.slice(0,180):[];
-  const detailed=await Promise.all(rows.map((r:any)=>getJson<any>(`https://api.tcgdex.net/v2/en/cards/${r.id}`).catch(()=>null)));
-  return detailed.filter(Boolean).map(pokemonToCard);
+  return rows.map((r:any)=>({id:String(r.id),game:'pokemon' as const,name:String(r.name),number:r.localId==null?undefined:String(r.localId),setId:String(set.id),setName:String(set.name),image:r.image,prices:[],variants:[],externalId:String(r.id)}));
 }
 
 export async function searchYugioh(query:string):Promise<CatalogCard[]>{
