@@ -17,16 +17,6 @@ const savedKey='poyukegimonho.collection.v2';
 function loadCollection():SavedCard[]{try{return JSON.parse(localStorage.getItem(savedKey)||'[]') as SavedCard[]}catch{return []}}
 function saveCollection(items:SavedCard[]){localStorage.setItem(savedKey,JSON.stringify(items))}
 function extractNumberHint(text:string){return text.match(/\b\d{1,3}\s*\/\s*\d{1,3}\b/)?.[0]?.replace(/\s/g,'')||text.match(/\b[A-Z]{2,6}\d?-[A-Z0-9]{1,5}\b/i)?.[0]||undefined}
-function perspectiveCrop(source:HTMLCanvasElement,points:Point[]){
- const w=source.width,h=source.height,p=points.map(x=>({x:x.x/100*w,y:x.y/100*h}));
- const width=Math.max(Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y),Math.hypot(p[2].x-p[3].x,p[2].y-p[3].y));
- const height=Math.max(Math.hypot(p[3].x-p[0].x,p[3].y-p[0].y),Math.hypot(p[2].x-p[1].x,p[2].y-p[1].y));
- const out=document.createElement('canvas');out.width=Math.max(320,Math.round(width));out.height=Math.max(448,Math.round(height));
- const ctx=out.getContext('2d');if(!ctx)return source;
- const minX=Math.min(...p.map(v=>v.x)),minY=Math.min(...p.map(v=>v.y));
- ctx.drawImage(source,minX,minY,width,height,0,0,out.width,out.height);return out;
-}
-
 export default function App(){
  const [page,setPage]=useState<(typeof nav)[number][0]>('home');
  const [game,setGame]=useState<Game>('pokemon');
