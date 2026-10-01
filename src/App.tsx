@@ -16,6 +16,7 @@ const savedKey='poyukegimonho.collection.v2';
 
 function loadCollection():SavedCard[]{try{return JSON.parse(localStorage.getItem(savedKey)||'[]') as SavedCard[]}catch{return []}}
 function saveCollection(items:SavedCard[]){localStorage.setItem(savedKey,JSON.stringify(items))}
+function extractNumberHint(text:string){return text.match(/\b\d{1,3}\s*\/\s*\d{1,3}\b/)?.[0]?.replace(/\s/g,'')||text.match(/\b[A-Z]{2,6}\d?-[A-Z0-9]{1,5}\b/i)?.[0]||undefined}
 function perspectiveCrop(source:HTMLCanvasElement,points:Point[]){
  const w=source.width,h=source.height,p=points.map(x=>({x:x.x/100*w,y:x.y/100*h}));
  const width=Math.max(Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y),Math.hypot(p[2].x-p[3].x,p[2].y-p[3].y));
@@ -67,7 +68,7 @@ export default function App(){
   }
   const crop=perspectiveWarp(canvas,corners);const blob=await new Promise<Blob|null>(r=>crop.toBlob(r,'image/jpeg',.92));
   if(blob){const url=URL.createObjectURL(blob);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
-   try{const ocr=await recognizeText(blob);setOcrText(ocr.text);setOcrConfidence(ocr.confidence);const results=await recognize(game,ocr.text);const ranked=await rankVisualMatches(blob,results);setRecognition(ranked);if(ranked.length)setSelected(ranked[0])}
+   try{const ocr=await recognizeText(blob);setOcrText(ocr.text);setOcrConfidence(ocr.confidence);const results=await recognize(game,ocr.text,extractNumberHint(ocr.text));const ranked=await rankVisualMatches(blob,results);setRecognition(ranked);if(ranked.length)setSelected(ranked[0])}
    catch{setError('OCR/catalogo non raggiungibile. Puoi cercare manualmente il nome della carta.')}
   }
   stopCamera();setProcessing(false);
