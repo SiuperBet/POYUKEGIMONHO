@@ -17,6 +17,7 @@ export interface GradeResult{
   findings:GradeFinding[];
   centering:number;
   subgrades:{centering:number;corners:number;edges:number;surface:number};
+  assessmentSource?:'ai'|'manual';
 }
 
 type QuadPoint={x:number;y:number};
@@ -144,6 +145,6 @@ export function gradeImage(image:ImageData,quadArea:number,quad?:QuadPoint[]):Gr
 
   return {
     grade:gradeFromScore(score),score,confidence:Number(confidence.toFixed(2)),defects:[...new Set(defects)],findings,centering:Math.round(centering),
-    subgrades:{centering:Math.round(centering),corners:Math.round(corners),edges:Math.round(edges),surface:Math.round(surface)}
+    subgrades:{centering:Math.round(centering),corners:Math.round(corners),edges:Math.round(edges),surface:Math.round(surface)},assessmentSource:'ai'
   };
 }
