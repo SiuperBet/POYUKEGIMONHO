@@ -76,11 +76,18 @@ export async function searchYugioh(query:string):Promise<CatalogCard[]>{
 }
 
 export async function recognize(game:CatalogGame,text:string,numberHint?:string):Promise<CatalogCard[]>{
-  const query=cleanText(text).split(/\s+/).filter(w=>w.length>2).slice(0,5).join(' ');
-  if(!query)return [];
-  const results=game==='pokemon'?await searchPokemon(query):await searchYugioh(query);
-  if(numberHint)return results.sort((a,b)=>Number(a.number===numberHint)-Number(b.number===numberHint)).reverse();
-  return results;
+  const tokens=[...new Set(cleanText(text).split(/\s+/).filter(w=>w.length>=3).slice(0,8))];
+  if(!tokens.length)return [];
+  const batches=await Promise.all(tokens.map(token=>game==='pokemon'?searchPokemon(token):searchYugioh(token)).catch?[]:[]);
+  const flat=batches.flat();
+  const unique=[...new Map(flat.map(card=>[card.externalId,card])).values()];
+  const scored=unique.map(card=>{
+    const name=card.name.toLowerCase();
+    const tokenScore=tokens.reduce((n,t)=>n+(name.includes(t.toLowerCase())?3:0),0);
+    const numberScore=numberHint&&card.number&&card.number.replace(/\s/g,'')===numberHint.replace(/\s/g,'')?20:0;
+    return {card,score:tokenScore+numberScore};
+  });
+  return scored.sort((a,b)=>b.score-a.score).map(x=>x.card).slice(0,12);
 }
 
 export async function getPokemonSets(){
