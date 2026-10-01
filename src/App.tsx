@@ -66,12 +66,12 @@ useEffect(()=>{saveGradingScans(gradingScans)},[gradingScans]);
    streamRef.current=stream;
    if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play()}
    setCameraConsentOpen(false);
-   capturedRef.current=false;autoStable.current=0;setCameraOn(true);
+   capturedRef.current=false;autoStable.current=0;detectionMisses.current=0;setCameraOn(true);
   }catch{setCameraOn(false);setError('Fotocamera non disponibile: controlla i permessi oppure usa Galleria.')}
  }
  function stopCamera(){streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setCameraOn(false)}
  function resetScan(){
-  stopCamera();setPreview(old=>{if(old)URL.revokeObjectURL(old);return null});setPreviewData(null);setCorners(initialCorners);detectedCornersRef.current=null;setRecognition([]);setSelected(null);setGrade(null);setOcrText('');setOcrConfidence(0);setQuality(null);setError('');setStability({good:0,bad:0,state:'searching'});capturedRef.current=false;autoStable.current=0;
+  stopCamera();setPreview(old=>{if(old)URL.revokeObjectURL(old);return null});setPreviewData(null);setCorners(initialCorners);detectedCornersRef.current=null;setRecognition([]);setSelected(null);setGrade(null);setOcrText('');setOcrConfidence(0);setQuality(null);setError('');setStability({good:0,bad:0,state:'searching'});capturedRef.current=false;autoStable.current=0;detectionMisses.current=0;
  }
  function openScan(){resetScan();setPage('scan');setCameraConsentOpen(true)}
 
@@ -149,8 +149,11 @@ useEffect(()=>{saveGradingScans(gradingScans)},[gradingScans]);
  function snapSide(side:'top'|'right'|'bottom'|'left',fallback:Point[]){
  const c=sourceCanvas();if(!c)return fallback;
  const frame=c.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,c.width,c.height);if(!frame)return fallback;
- const detected=detectCardQuad(frame);if(!detected||detected.confidence<.55)return fallback;
+ const detected=detectCardQuad(frame);if(!detected||detected.confidence<.76)return fallback;
  const p=detected.points;
+ const cx=p.reduce((s,q)=>s+q.x,0)/4,cy=p.reduce((s,q)=>s+q.y,0)/4;
+ const fx=fallback.reduce((s,q)=>s+q.x,0)/4,fy=fallback.reduce((s,q)=>s+q.y,0)/4;
+ if(Math.hypot(cx-fx,cy-fy)>14)return fallback;
  return fallback.map((point,i)=>side==='top'&&i<2?p[i]:side==='right'&&(i===1||i===2)?p[i]:side==='bottom'&&i>1?p[i]:side==='left'&&(i===0||i===3)?p[i]:point);
 }
 function moveSide(side:'top'|'right'|'bottom'|'left',e:ReactPointerEvent<HTMLButtonElement>){
