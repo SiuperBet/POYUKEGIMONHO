@@ -201,6 +201,16 @@ function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
    const detected=detectCardQuad(frame);
    const previous=detectedCornersRef.current;
    let usable=detected&&detected.confidence>.76?detected:null;
+   if(usable){
+    const pts=usable.points;
+    const cx=pts.reduce((s,p)=>s+p.x,0)/4,cy=pts.reduce((s,p)=>s+p.y,0)/4;
+    const width=Math.max(pts[1].x-pts[0].x,pts[2].x-pts[3].x);
+    const height=Math.max(pts[3].y-pts[0].y,pts[2].y-pts[1].y);
+    const area=polygonArea(pts)/10000;
+    const centered=Math.hypot(cx-50,cy-50)<=16;
+    const usableSize=width>=28&&width<=82&&height>=42&&height<=94&&area>=.10&&area<=.76;
+    if(!centered||!usableSize)usable=null;
+   }
    if(usable&&previous){
     const prevCx=previous.reduce((s,p)=>s+p.x,0)/4,prevCy=previous.reduce((s,p)=>s+p.y,0)/4;
     const nextCx=usable.points.reduce((s,p)=>s+p.x,0)/4,nextCy=usable.points.reduce((s,p)=>s+p.y,0)/4;
