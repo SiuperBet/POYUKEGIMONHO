@@ -81,20 +81,28 @@ export default function App(){
  function snapCorner(x:number,y:number){
   const c=sourceCanvas();if(!c)return {x,y};
   const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return {x,y};
-  const radius=18,px=x/100*c.width,py=y/100*c.height;
   const image=ctx.getImageData(0,0,c.width,c.height),data=image.data;
-  const lum=(xx:number,yy:number)=>{xx=Math.max(1,Math.min(c.width-2,xx));yy=Math.max(1,Math.min(c.height-2,yy));const i=(yy*c.width+xx)*4;return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2]};
+  const px=x/100*c.width,py=y/100*c.height;
+  const lum=(xx:number,yy:number)=>{
+   xx=Math.max(1,Math.min(c.width-2,Math.round(xx)));yy=Math.max(1,Math.min(c.height-2,Math.round(yy)));
+   const i=(yy*c.width+xx)*4;return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2];
+  };
+  const edgeX=(xx:number,yy:number)=>Math.abs(lum(xx-2,yy)-lum(xx+2,yy));
+  const edgeY=(xx:number,yy:number)=>Math.abs(lum(xx,yy-2)-lum(xx,yy+2));
+  const radius=42,step=2;
   let best={x:px,y:py,score:0};
-  for(let dy=-radius;dy<=radius;dy+=2)for(let dx=-radius;dx<=radius;dx+=2){
+  for(let dy=-radius;dy<=radius;dy+=step)for(let dx=-radius;dx<=radius;dx+=step){
    const xx=px+dx,yy=py+dy;
-   let score=0;
-   for(let k=-24;k<=24;k+=4){
-    score+=Math.abs(lum(xx+k,yy)-lum(xx+k,yy+3));
-    score+=Math.abs(lum(xx,yy+k)-lum(xx+3,yy+k));
-   }
+   const horizontal=edgeY(xx,yy),vertical=edgeX(xx,yy);
+   let h=0,v=0;
+   for(let k=-70;k<=70;k+=5){h+=edgeY(xx+k,yy);v+=edgeX(xx,yy+k);}
+   const corner=Math.max(0,h)+Math.max(0,v);
+   const local=(horizontal+vertical)*5;
+   const score=corner*.8+local;
    if(score>best.score)best={x:xx,y:yy,score};
   }
-  return best.score>220?{x:best.x/c.width*100,y:best.y/c.height*100}:{x,y};
+  const normalized=best.score/Math.max(1,c.width+c.height);
+  return normalized>0.85?{x:best.x/c.width*100,y:best.y/c.height*100}:{x,y};
  }
  function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
   const r=e.currentTarget.parentElement?.getBoundingClientRect();if(!r)return;
