@@ -7,6 +7,7 @@ import {recognize,getPokemonSets,getYugiohSets,getPokemonSetCards,getYugiohSetCa
 import {gradeImage,type GradeResult} from './services/grading';
 import {detectCardQuad,perspectiveWarp} from './scanner/vision';
 import {rankVisualMatches} from './services/visualMatch';
+import {enableDeviceLevel,getDeviceLevel,type DeviceLevel} from './scanner/deviceLevel';
 
 type Game='pokemon'|'yugioh';
 type SortMode='nameAsc'|'nameDesc'|'priceAsc'|'priceDesc'|'numberAsc'|'numberDesc';
@@ -26,7 +27,7 @@ function blobToDataUrl(blob:Blob){return new Promise<string>((resolve,reject)=>{
 export default function App(){
  const [page,setPage]=useState<(typeof nav)[number][0]>('home');
  const [game,setGame]=useState<Game>('pokemon');
- const [cameraOn,setCameraOn]=useState(false),[auto,setAuto]=useState(true);
+ const [cameraOn,setCameraOn]=useState(false),[auto,setAuto]=useState(true),[deviceLevel,setDeviceLevel]=useState<DeviceLevel>(getDeviceLevel());
  const [preview,setPreview]=useState<string|null>(null),[previewData,setPreviewData]=useState<string|null>(null),[corners,setCorners]=useState<Point[]>(initialCorners);
  const [stability,setStability]=useState<QuadStability>({good:0,bad:0,state:'searching'});
  const [quality,setQuality]=useState<QualityResult|null>(null),[collection,setCollection]=useState<SavedCard[]>(loadCollection);
@@ -47,6 +48,7 @@ export default function App(){
 
  async function startCamera(){
   setError('');
+  void enableDeviceLevel().then(setDeviceLevel);
   try{
    if(!navigator.mediaDevices?.getUserMedia)throw new Error('media');
    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:3840,max:3840},height:{ideal:2160,max:2160},frameRate:{ideal:30,max:60}},audio:false});
@@ -151,8 +153,10 @@ export default function App(){
    const frame=c.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,c.width,c.height);if(!frame)return;
    const detected=detectCardQuad(frame);
    if(detected&&detected.confidence>.62){
-    setCorners(detected.points);setStability(s=>updateQuadStability(s,true));autoStable.current+=1;
-    if(detected.confidence>.70&&autoStable.current>=4){autoStable.current=0;void processCanvas(c,detected.points)}
+    setCorners(detected.points);setStability(s=>updateQuadStability(s,true));
+    const level=getDeviceLevel();setDeviceLevel(level);
+    autoStable.current=level.available&&level.tilt>8?0:autoStable.current+1;
+    if(detected.confidence>.70&&autoStable.current>=4&&(!level.available||level.tilt<=8)){autoStable.current=0;void processCanvas(c,detected.points)}
    }else{autoStable.current=0;setStability(s=>updateQuadStability(s,false))}
   },500);
   return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}
@@ -195,7 +199,7 @@ export default function App(){
  {cameraOn&&<video ref={videoRef} className="video live" playsInline muted/>}{!cameraOn&&!preview&&<div className="camera-off"><strong>Scanner pronto</strong><span>Attiva la camera o importa una foto.</span><button className="primary" onClick={()=>void startCamera()}>Attiva camera</button></div>}{preview&&<img className="photo-preview" src={preview} alt="Carta acquisita"/>}
  <svg className="quad-overlay" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points={corners.map(p=>p.x+','+p.y).join(' ')}/></svg>
  {corners.map((p,i)=><button key={i} className="corner" style={{left:p.x+'%',top:p.y+'%'}} onPointerDown={e=>{dragging.current=i;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(dragging.current===i)moveCorner(i,e)}} onPointerUp={()=>{dragging.current=null}} onPointerCancel={()=>{dragging.current=null}} aria-label={'Sposta angolo '+(i+1)}/>)}
- <div className="scan-top"><span className={'pill '+(stability.state==='ready'?'good':'')}>● {stableLabel}</span><span className="pill">{quality?.ok?'Qualità OK':'Qualità in analisi'} · Auto {auto?'ON':'OFF'}</span></div><div className="scan-bottom"><button className="shutter" onClick={capture} aria-label="Scatta" disabled={processing}/></div></div>
+ <div className="scan-top"><span className={'pill '+(stability.state==='ready'?'good':'')}>● {stableLabel}</span><span className={'pill '+(deviceLevel.available&&deviceLevel.tilt<=6?'good':'')}>◉ {deviceLevel.available?(deviceLevel.tilt<=6?'Bolla OK':`Inclina ${deviceLevel.tilt.toFixed(0)}°`):'Bolla non disponibile'}</span><span className="pill">{quality?.ok?'Qualità OK':'Qualità in analisi'} · Auto {auto?'ON':'OFF'}</span></div><div className="level-bubble"><span className="level-dot" style={{transform:`translate(${Math.max(-34,Math.min(34,(deviceLevel.gamma||0)*1.2))}px,${Math.max(-34,Math.min(34,(deviceLevel.beta||0)*1.2))}px)`}}/></div><div className="scan-bottom"><button className="shutter" onClick={capture} aria-label="Scatta" disabled={processing}/></div></div>
  <div className="scanner-footer"><label className="btn">Galleria<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{const f=e.target.files?.[0];if(f)importImage(f)}}/></label><button className="btn" onClick={()=>setAuto(v=>!v)}>Auto Capture: {auto?'ON':'OFF'}</button><button className="btn" onClick={resetScan}>Nuova scansione</button></div>
  <div className="review"><div className="review-head"><div><p className="eyebrow">RISULTATO</p><h3>{processing?'Analisi in corso…':selected?.name||'Nessuna carta riconosciuta'}</h3></div>{grade&&<span className="grade">{grade.grade} · {grade.score}/100</span>}</div>
  {ocrText&&<p className="ocr">OCR: <b>{ocrText.slice(0,220)}</b> · confidenza {(ocrConfidence*100).toFixed(0)}%</p>}{grade&&<div className="chips"><span>Condizione: {grade.grade}</span><span>Confidenza: {(grade.confidence*100).toFixed(0)}%</span>{grade.defects.map(d=><span key={d}>{d}</span>)}</div>}
