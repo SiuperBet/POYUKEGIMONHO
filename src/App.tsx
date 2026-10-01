@@ -171,7 +171,7 @@ export default function App(){
   setSelectedSet(set);setSetCards([]);setLoadingSet(true);setError('');
   try{setSetCards(game==='pokemon'?await getPokemonSetCards(String(set.id)):await getYugiohSetCards(String(set.set_name)))}catch{setError('Impossibile caricare le carte dell’espansione')}finally{setLoadingSet(false)}
  }
- useEffect(()=>{if(page==='sets'&&!sets.length)void loadSets()},[page,game]);
+ useEffect(()=>{if(page==='sets'&&!selectedSet)void loadSets()},[page,game,selectedSet]);
 
  const filteredSets=sets.filter(s=>String(s.name||s.set_name).toLowerCase().includes(setSearch.toLowerCase()));
  const totalValue=collection.reduce((n,c)=>n+(c.prices.find(p=>p.currency==='EUR')?.amount||0)*c.quantity,0);
