@@ -52,7 +52,7 @@ export function perspectiveWarp(source:HTMLCanvasElement,points:Point[],outW=480
  const src=points.map(p=>({x:p.x/100*source.width,y:p.y/100*source.height}));
  const dst=[{x:0,y:0},{x:outW-1,y:0},{x:outW-1,y:outH-1},{x:0,y:outH-1}];
  const a:number[][]=[],b:number[]=[];
- for(let i=0;i<4;i++){const s=src[i],d=dst[i];a.push([s.x,s.y,1,0,0,0,-d.x*s.x,-d.x*s.y]);b.push(d.x);a.push([0,0,0,s.x,s.y,1,-d.y*s.x,-d.y*s.y]);b.push(d.y)}
+ for(let i=0;i<4;i++){const s=src[i],d=dst[i];a.push([d.x,d.y,1,0,0,0,-s.x*d.x,-s.x*d.y]);b.push(s.x);a.push([0,0,0,d.x,d.y,1,-s.y*d.x,-s.y*d.y]);b.push(s.y)}
  const [h11,h12,h13,h21,h22,h23,h31,h32]=solve8(a,b);
  const out=document.createElement('canvas');out.width=outW;out.height=outH;
  const ctx=out.getContext('2d',{willReadFrequently:true});if(!ctx)return source;
