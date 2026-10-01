@@ -13,7 +13,7 @@ function intersections(a:{theta:number;rho:number},b:{theta:number;rho:number}){
 }
 
 function lineScore(edges:Edge[],theta:number,rho:number,w:number,h:number){
-  const c=Math.cos(theta),s=Math.sin(theta),normalTol=.48;
+  const c=Math.cos(theta),s=Math.sin(theta),normalTol=.68;
   let score=0,count=0,orientation=0;
   for(const e of edges){
     if(Math.abs(e.x*c+e.y*s-rho)<2.8){
@@ -25,21 +25,21 @@ function lineScore(edges:Edge[],theta:number,rho:number,w:number,h:number){
       }
     }
   }
-  if(count<12)return 0;
+  if(count<7)return 0;
   return score*(Math.min(1,count/55))*(.72+.28*Math.min(1,orientation/80));
 }
 
 function detectPair(edges:Edge[],theta:number,w:number,h:number){
   const maxR=Math.hypot(w,h),step=5;
   const candidates:{rho:number;score:number}[]=[];
-  for(let rho=-maxR;rho<=maxR;rho+=step){
+  for(let rho=-maxR;rho<=maxR;rho+=3){
     const score=lineScore(edges,theta,rho,w,h);
     if(score>0)candidates.push({rho,score});
   }
   candidates.sort((a,b)=>b.score-a.score);
   const out:{rho:number;score:number}[]=[];
   for(const cnd of candidates){
-    if(out.every(x=>Math.abs(x.rho-cnd.rho)>Math.max(w,h)*.07)){
+    if(out.every(x=>Math.abs(x.rho-cnd.rho)>Math.max(w,h)*.055)){
       out.push(cnd);
       if(out.length===4)break;
     }
