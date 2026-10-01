@@ -185,7 +185,7 @@ function moveSide(side:'top'|'right'|'bottom'|'left',e:ReactPointerEvent<HTMLBut
  const value=side==='top'||side==='bottom'?(e.clientY-r.top)/r.height*100:(e.clientX-r.left)/r.width*100;
  setCorners(old=>{const next=old.map(p=>({...p}));if(side==='top'||side==='bottom'){const ids=side==='top'?[0,1]:[2,3],avg=ids.reduce((n,i)=>n+old[i].y,0)/2,dy=clamp(value,3,97)-avg;ids.forEach(i=>next[i].y=clamp(old[i].y+dy,2,98));}else{const ids=side==='right'?[1,2]:[0,3],avg=ids.reduce((n,i)=>n+old[i].x,0)/2,dx=clamp(value,3,97)-avg;ids.forEach(i=>next[i].x=clamp(old[i].x+dx,2,98));}return next});
 }
-function alignSide(side:'top'|'right'|'bottom'|'left'){setCorners(old=>snapSide(side,old));}
+function alignSide(side:'top'|'right'|'bottom'|'left'){void side;}
 function saveGrading(){if(!grade)return;setGradingScans(old=>[{id:crypto.randomUUID(),grade,image:previewData||undefined,addedAt:new Date().toISOString()},...old]);setError('');}
 function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
   const r=e.currentTarget.parentElement?.getBoundingClientRect();if(!r)return;
