@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import type {PointerEvent as ReactPointerEvent} from 'react';
 import {clamp,isConvexQuad,polygonArea,updateQuadStability,type Point,type QuadStability} from './scanner/geometry';
 import {estimateImageQuality,evaluateQuality,type QualityResult} from './scanner/quality';
-import {recognizeText} from './services/ocr';
+import {recognizeCardText,recognizeText} from './services/ocr';
 import {recognize,getPokemonSets,getYugiohSets,type CatalogCard} from './services/catalog';
 import {gradeImage,type GradeResult} from './services/grading';
 import {detectCardQuad,perspectiveWarp} from './scanner/vision';
@@ -68,7 +68,7 @@ export default function App(){
   }
   const crop=perspectiveWarp(canvas,corners);const blob=await new Promise<Blob|null>(r=>crop.toBlob(r,'image/jpeg',.92));
   if(blob){const url=URL.createObjectURL(blob);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
-   try{const ocr=await recognizeText(blob);setOcrText(ocr.text);setOcrConfidence(ocr.confidence);const results=await recognize(game,ocr.text,extractNumberHint(ocr.text));const ranked=await rankVisualMatches(blob,results);setRecognition(ranked);if(ranked.length)setSelected(ranked[0])}
+   try{const ocr=await recognizeCardText(blob);setOcrText(ocr.text);setOcrConfidence(ocr.confidence);const results=await recognize(game,ocr.text,extractNumberHint(ocr.text));const ranked=await rankVisualMatches(blob,results);setRecognition(ranked);if(ranked.length)setSelected(ranked[0])}
    catch{setError('OCR/catalogo non raggiungibile. Puoi cercare manualmente il nome della carta.')}
   }
   stopCamera();setProcessing(false);
@@ -78,10 +78,29 @@ export default function App(){
   capturedRef.current=true;stopCamera();const url=URL.createObjectURL(file);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
   const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d')?.drawImage(img,0,0);void processCanvas(c)};img.src=url;
  }
+ function snapCorner(x:number,y:number,index:number){
+  const c=sourceCanvas();if(!c)return {x,y};
+  const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return {x,y};
+  const radius=18,px=x/100*c.width,py=y/100*c.height;
+  const image=ctx.getImageData(0,0,c.width,c.height),data=image.data;
+  const lum=(xx:number,yy:number)=>{xx=Math.max(1,Math.min(c.width-2,xx));yy=Math.max(1,Math.min(c.height-2,yy));const i=(yy*c.width+xx)*4;return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2]};
+  let best={x:px,y:py,score:0};
+  for(let dy=-radius;dy<=radius;dy+=2)for(let dx=-radius;dx<=radius;dx+=2){
+   const xx=px+dx,yy=py+dy;
+   let score=0;
+   for(let k=-24;k<=24;k+=4){
+    score+=Math.abs(lum(xx+k,yy)-lum(xx+k,yy+3));
+    score+=Math.abs(lum(xx,yy+k)-lum(xx+3,yy+k));
+   }
+   if(score>best.score)best={x:xx,y:yy,score};
+  }
+  return best.score>220?{x:best.x/c.width*100,y:best.y/c.height*100}:{x,y};
+ }
  function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
   const r=e.currentTarget.parentElement?.getBoundingClientRect();if(!r)return;
-  const x=clamp((e.clientX-r.left)/r.width*100,3,97),y=clamp((e.clientY-r.top)/r.height*100,3,97);
-  setCorners(old=>old.map((p,i)=>i===index?{x,y}:p));
+  const rawX=clamp((e.clientX-r.left)/r.width*100,3,97),rawY=clamp((e.clientY-r.top)/r.height*100,3,97);
+  const p=snapCorner(rawX,rawY,index);
+  setCorners(old=>old.map((p0,i)=>i===index?p:p0));
  }
  useEffect(()=>{if(!cameraOn||!auto)return;autoTimer.current=window.setInterval(()=>{if(capturedRef.current)return;const c=sourceCanvas();if(!c)return;const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return;const frame=ctx.getImageData(0,0,c.width,c.height);const m=estimateImageQuality(frame,c.width,c.height);const detected=detectCardQuad(frame);if(detected&&detected.confidence>.62){setCorners(detected.points);setStability(s=>updateQuadStability(s,true));if(detected.confidence>.76&&stability.state==='ready')capture()}else{const valid=isConvexQuad(corners)&&polygonArea(corners)>1100&&m.contrast>14&&m.edgeConfidence>.08;setStability(s=>updateQuadStability(s,valid))}},700);return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}},[cameraOn,auto,stability.state,corners]);
  async function manualSearch(){if(!manualQuery.trim())return;setProcessing(true);try{const r=await recognize(game,manualQuery);setRecognition(r);setSelected(r[0]||null);setOcrText(manualQuery)}catch{setError('Catalogo non raggiungibile')}setProcessing(false)}
