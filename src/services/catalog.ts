@@ -75,19 +75,30 @@ export async function searchYugioh(query:string):Promise<CatalogCard[]>{
   });
 }
 
+function similarity(a:string,b:string){
+ const x=a.toLowerCase().replace(/[^a-z0-9]/g,''),y=b.toLowerCase().replace(/[^a-z0-9]/g,'');
+ if(!x||!y)return 0;
+ const prev=Array.from({length:y.length+1},(_,i)=>i);
+ for(let i=1;i<=x.length;i++){const row=[i];for(let j=1;j<=y.length;j++)row[j]=Math.min(row[j-1]+1,prev[j]+1,prev[j-1]+(x[i-1]===y[j-1]?0:1));for(let j=0;j<row.length;j++)prev[j]=row[j]}
+ return 1-prev[y.length]/Math.max(x.length,y.length);
+}
+
 export async function recognize(game:CatalogGame,text:string,numberHint?:string):Promise<CatalogCard[]>{
-  const tokens=[...new Set(cleanText(text).split(/\s+/).filter(w=>w.length>=3).slice(0,8))];
-  if(!tokens.length)return [];
-  const batches=await Promise.all(tokens.map(token=>game==='pokemon'?searchPokemon(token):searchYugioh(token)));
-  const flat=batches.flat();
-  const unique=[...new Map(flat.map(card=>[card.externalId,card])).values()];
-  const scored=unique.map(card=>{
-    const name=card.name.toLowerCase();
-    const tokenScore=tokens.reduce((n,t)=>n+(name.includes(t.toLowerCase())?3:0),0);
-    const numberScore=numberHint&&card.number&&card.number.replace(/\s/g,'')===numberHint.replace(/\s/g,'')?20:0;
-    return {card,score:tokenScore+numberScore};
-  });
-  return scored.sort((a,b)=>b.score-a.score).map(x=>x.card).slice(0,12);
+ const cleaned=cleanText(text);
+ const lines=[...new Set(cleaned.split(/\n+/).map(x=>x.trim()).filter(x=>x.length>=3))];
+ const tokens=[...new Set(cleaned.split(/\s+/).filter(w=>w.length>=3))].slice(0,14);
+ if(!tokens.length)return [];
+ const queries=[...new Set([...lines.slice(0,3),...tokens])].slice(0,12);
+ const batches=await Promise.all(queries.map(q=>game==='pokemon'?searchPokemon(q):searchYugioh(q)));
+ const unique=[...new Map(batches.flat().map(card=>[card.externalId,card])).values()];
+ const scored=unique.map(card=>{
+  const name=card.name.toLowerCase();
+  const tokenScore=tokens.reduce((n,t)=>n+(name.includes(t.toLowerCase())?4:similarity(t,name)>.72?2:0),0);
+  const lineScore=lines.reduce((n,line)=>n+(similarity(line,name)>.62?6:0),0);
+  const numberScore=numberHint&&card.number&&card.number.replace(/\s/g,'').toLowerCase()===numberHint.replace(/\s/g,'').toLowerCase()?30:0;
+  return {card,score:tokenScore+lineScore+numberScore};
+ });
+ return scored.sort((a,b)=>b.score-a.score).map(x=>x.card).slice(0,12);
 }
 
 export async function getPokemonSets(){
