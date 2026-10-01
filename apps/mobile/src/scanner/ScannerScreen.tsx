@@ -63,7 +63,7 @@ export function ScannerScreen(){
   const actualZoom=device.minZoom+(device.maxZoom-device.minZoom)*zoom;
 
   return <View style={styles.root}>
-    <Camera ref={camera} style={StyleSheet.absoluteFill} device={device} isActive photo torch={torch?'on':'off'} zoom={actualZoom} onInitialized={()=>setReady(true)}/>
+    <Camera ref={camera} style={StyleSheet.absoluteFill} device={device} isActive photo photoQualityBalance="quality" torch={torch?'on':'off'} zoom={actualZoom} onInitialized={()=>setReady(true)}/>
     <View style={styles.scrim}/>
     <View style={styles.top}>
       <View style={styles.pill}><Text style={styles.pillText}>{ready?'● Camera pronta':'● Avvio camera'}</Text></View>
