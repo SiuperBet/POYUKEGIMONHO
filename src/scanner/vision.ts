@@ -24,7 +24,6 @@ function lineScore(edges:Edge[],theta:number,rho:number,w:number,h:number){
 }
 
 function detectPair(edges:Edge[],theta:number,w:number,h:number){
-  const c=Math.cos(theta),s=Math.sin(theta);
   const maxR=Math.hypot(w,h),step=4;
   const candidates:{rho:number;score:number}[]=[];
   for(let rho=-maxR;rho<=maxR;rho+=step){
