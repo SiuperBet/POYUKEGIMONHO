@@ -78,7 +78,7 @@ export async function searchYugioh(query:string):Promise<CatalogCard[]>{
 export async function recognize(game:CatalogGame,text:string,numberHint?:string):Promise<CatalogCard[]>{
   const tokens=[...new Set(cleanText(text).split(/\s+/).filter(w=>w.length>=3).slice(0,8))];
   if(!tokens.length)return [];
-  const batches=await Promise.all(tokens.map(token=>game==='pokemon'?searchPokemon(token):searchYugioh(token)).catch?[]:[]);
+  const batches=await Promise.all(tokens.map(token=>game==='pokemon'?searchPokemon(token):searchYugioh(token)));
   const flat=batches.flat();
   const unique=[...new Map(flat.map(card=>[card.externalId,card])).values()];
   const scored=unique.map(card=>{
