@@ -5,7 +5,7 @@ export type DetectedQuad={points:Point[];confidence:number};
 function luma(data:Uint8ClampedArray,i:number){return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2]}
 
 export function detectCardQuad(image:ImageData):DetectedQuad|null{
- const {width,height,data}=image;
+ const {width,height}=image;
  const scale=Math.min(1,720/Math.max(width,height));
  const w=Math.max(80,Math.round(width*scale)),h=Math.max(80,Math.round(height*scale));
  const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
