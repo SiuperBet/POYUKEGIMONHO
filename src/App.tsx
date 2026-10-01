@@ -48,8 +48,30 @@ export default function App(){
 
  async function startCamera(){
   setError('');
-  try{streamRef.current=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
-   if(videoRef.current){videoRef.current.srcObject=streamRef.current;await videoRef.current.play()}setCameraOn(true);capturedRef.current=false;
+  try{
+   const stream=await navigator.mediaDevices.getUserMedia({
+    video:{
+     facingMode:{ideal:'environment'},
+     width:{ideal:3840,max:3840},
+     height:{ideal:2160,max:2160},
+     frameRate:{ideal:30,max:60}
+    },
+    audio:false
+   });
+   const track=stream.getVideoTracks()[0];
+   const caps=track.getCapabilities?.();
+   if(caps?.width&&caps?.height){
+    const maxWidth=typeof caps.width.max==='number'?caps.width.max:3840;
+    const maxHeight=typeof caps.height.max==='number'?caps.height.max:2160;
+    try{await track.applyConstraints({
+     width:{ideal:Math.min(3840,maxWidth),max:maxWidth},
+     height:{ideal:Math.min(2160,maxHeight),max:maxHeight},
+     frameRate:{ideal:30,max:typeof caps.frameRate?.max==='number'?caps.frameRate.max:60}
+    })}catch{}
+   }
+   streamRef.current=stream;
+   if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play()}
+   setCameraOn(true);capturedRef.current=false;
   }catch{setCameraOn(false);setError('Fotocamera non disponibile: controlla i permessi o usa Galleria.')}
  }
  function stopCamera(){streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setCameraOn(false)}
