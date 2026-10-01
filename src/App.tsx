@@ -6,6 +6,7 @@ import {recognizeText} from './services/ocr';
 import {recognize,getPokemonSets,getYugiohSets,type CatalogCard} from './services/catalog';
 import {gradeImage,type GradeResult} from './services/grading';
 import {detectCardQuad,perspectiveWarp} from './scanner/vision';
+import {rankVisualMatches} from './services/visualMatch';
 
 type Game='pokemon'|'yugioh';
 type SavedCard=CatalogCard & {quantity:number;grade:GradeResult;addedAt:string};
@@ -66,7 +67,7 @@ export default function App(){
   }
   const crop=perspectiveWarp(canvas,corners);const blob=await new Promise<Blob|null>(r=>crop.toBlob(r,'image/jpeg',.92));
   if(blob){const url=URL.createObjectURL(blob);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
-   try{const ocr=await recognizeText(blob);setOcrText(ocr.text);setOcrConfidence(ocr.confidence);const results=await recognize(game,ocr.text);setRecognition(results);if(results.length)setSelected(results[0])}
+   try{const ocr=await recognizeText(blob);setOcrText(ocr.text);setOcrConfidence(ocr.confidence);const results=await recognize(game,ocr.text);const ranked=await rankVisualMatches(blob,results);setRecognition(ranked);if(ranked.length)setSelected(ranked[0])}
    catch{setError('OCR/catalogo non raggiungibile. Puoi cercare manualmente il nome della carta.')}
   }
   stopCamera();setProcessing(false);
