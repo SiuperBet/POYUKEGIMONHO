@@ -7,6 +7,10 @@ on:
       - "apps/mobile/**"
       - ".github/workflows/mobile-build.yml"
 
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android-apk:
     runs-on: ubuntu-latest
