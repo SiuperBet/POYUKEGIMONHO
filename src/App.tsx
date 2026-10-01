@@ -11,14 +11,16 @@ import {enableDeviceLevel,getDeviceLevel,type DeviceLevel} from './scanner/devic
 
 type Game='pokemon'|'yugioh';
 type SortMode='nameAsc'|'nameDesc'|'priceAsc'|'priceDesc'|'numberAsc'|'numberDesc';
-type SavedCard=CatalogCard & {quantity:number;grade:GradeResult;addedAt:string;scanImage?:string};
+type SavedCard=CatalogCard & {quantity:number;grade:GradeResult;addedAt:string;scanImage?:string;ownedVariant?:string;ownedLanguage?:string;conditionNotes?:string[]};
 type SavedGradeScan={id:string;grade:GradeResult;image?:string;addedAt:string};
 type Condition=GradeResult['grade'];
 const conditionOptions:Condition[]=['Mint','NM','Excellent','Good','Played','Poor','Damaged'];
+const languageOptions=['Italiano','Inglese','Giapponese','Francese','Tedesco','Spagnolo','Portoghese','Cinese','Coreano','Altro'];
+const defectOptions=['Graffi','Piegature','Ammaccature','Whitening / bordi','Angoli usurati','Superficie usurata'];
 const conditionFactor:Record<Condition,number>={Mint:1,NM:1,Excellent:.65,Good:.41,Played:.22,Poor:.17,Damaged:.1};
 const conditionScore:Record<Condition,number>={Mint:99,NM:95,Excellent:88,Good:76,Played:58,Poor:35,Damaged:15};
-function manualGrade(condition:Condition):GradeResult{const score=conditionScore[condition];return {grade:condition,score,confidence:1,defects:[],findings:[],centering:100,subgrades:{centering:score,corners:score,edges:score,surface:score},assessmentSource:'manual'}}
-function conditionPrice(card:CatalogCard,condition:Condition){const base=getCardPrice(card,'EUR');return base?base*conditionFactor[condition]:0}
+function manualGrade(condition:Condition,defects:string[]=[]):GradeResult{const penalty=defects.length*3;const score=Math.max(0,conditionScore[condition]-penalty);return {grade:condition,score,confidence:1,defects,findings:defects.map(label=>({type:'surface',severity:defects.length>=3?'high':'medium',confidence:1,label,description:'Difetto indicato manualmente dall’utente.'})),centering:score,subgrades:{centering:score,corners:score,edges:score,surface:score},assessmentSource:'manual'}}
+function conditionPrice(card:CatalogCard,condition:Condition,variant?:string){const wanted=(variant||'').toLowerCase();const period=wanted.includes('reverse')?'reverse-current':wanted.includes('holo')?'holo-current':'current';const base=card.prices.find(p=>p.currency==='EUR'&&p.period===period)?.amount||getCardPrice(card,'EUR');return base?base*conditionFactor[condition]:0}
 function priceOf(card:CatalogCard){return getCardPrice(card,'EUR')||getCardPrice(card,'USD')||0}
 function sortCards<T extends CatalogCard>(items:T[],mode:SortMode){return [...items].sort((a,b)=>{if(mode.startsWith('name'))return a.name.localeCompare(b.name,'it',{numeric:true})*(mode==='nameAsc'?1:-1);if(mode.startsWith('number'))return String(a.number||'').localeCompare(String(b.number||''),'it',{numeric:true})*(mode==='numberAsc'?1:-1);return (priceOf(a)-priceOf(b))*(mode==='priceAsc'?1:-1)})}
 function sortSets<T extends Record<string,any>>(items:T[],mode:SortMode){return [...items].sort((a,b)=>{const an=String(a.name||a.set_name||''),bn=String(b.name||b.set_name||'');if(mode.startsWith('name'))return an.localeCompare(bn,'it',{numeric:true})*(mode==='nameAsc'?1:-1);const ac=Number(a.cardCount?.official||a.num_of_cards||0),bc=Number(b.cardCount?.official||b.num_of_cards||0);return (ac-bc)*(mode==='numberAsc'||mode==='priceAsc'?1:-1)})}
@@ -49,8 +51,8 @@ export default function App(){
  const [recognition,setRecognition]=useState<CatalogCard[]>([]),[ocrText,setOcrText]=useState('');
  const [ocrConfidence,setOcrConfidence]=useState(0),[processing,setProcessing]=useState(false);
  const [grade,setGrade]=useState<GradeResult|null>(null),[selected,setSelected]=useState<CatalogCard|null>(null);
- const [catalogSelected,setCatalogSelected]=useState<CatalogCard|null>(null),[manualCondition,setManualCondition]=useState<Condition>('NM'),[manualQuantity,setManualQuantity]=useState(1);
- const [editingCollectionId,setEditingCollectionId]=useState<string|null>(null),[editCondition,setEditCondition]=useState<Condition>('NM'),[editQuantity,setEditQuantity]=useState(1);
+ const [catalogSelected,setCatalogSelected]=useState<CatalogCard|null>(null),[manualCondition,setManualCondition]=useState<Condition>('NM'),[manualQuantity,setManualQuantity]=useState(1),[manualVariant,setManualVariant]=useState('Normal'),[manualLanguage,setManualLanguage]=useState('Italiano'),[manualDefects,setManualDefects]=useState<string[]>([]);
+ const [editingCollectionId,setEditingCollectionId]=useState<string|null>(null),[editCondition,setEditCondition]=useState<Condition>('NM'),[editQuantity,setEditQuantity]=useState(1),[editVariant,setEditVariant]=useState('Normal'),[editLanguage,setEditLanguage]=useState('Italiano'),[editDefects,setEditDefects]=useState<string[]>([]);
  const [manualQuery,setManualQuery]=useState(''),[error,setError]=useState('');
  const videoRef=useRef<HTMLVideoElement>(null),stageRef=useRef<HTMLDivElement>(null),streamRef=useRef<MediaStream|null>(null),dragging=useRef<number|null>(null),galleryInputRef=useRef<HTMLInputElement>(null);
  const autoTimer=useRef<number|null>(null),autoStable=useRef(0),capturedRef=useRef(false),detectedCornersRef=useRef<Point[]|null>(null),detectionMisses=useRef(0);
@@ -239,9 +241,9 @@ function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
   setCollection(old=>[...old,{...card,quantity:1,grade,addedAt:new Date().toISOString(),scanImage:previewData||undefined}]);
   setPage('collection');setError('');
  }
- function addCatalogCard(card:CatalogCard,condition:Condition,quantity:number){const qty=Math.max(1,Math.min(999,Math.round(quantity)));setCollection(old=>{const existing=old.find(x=>x.id===card.id&&x.grade.grade===condition);if(existing)return old.map(x=>x===existing?{...x,quantity:x.quantity+qty}:x);return [{...card,quantity:qty,grade:manualGrade(condition),addedAt:new Date().toISOString()},...old]});setCatalogSelected(null);setManualQuantity(1);setManualCondition('NM');setPage('collection');setError('');}
- function startEditCollection(card:SavedCard){setEditingCollectionId(card.addedAt);setEditCondition(card.grade.grade);setEditQuantity(card.quantity);}
- function saveEditCollection(card:SavedCard){const quantity=Math.max(1,Math.min(999,Math.round(editQuantity)));setCollection(old=>old.map(x=>x.addedAt===card.addedAt?{...x,quantity,grade:manualGrade(editCondition)}:x));setEditingCollectionId(null);}
+ function addCatalogCard(card:CatalogCard,condition:Condition,quantity:number){const qty=Math.max(1,Math.min(999,Math.round(quantity)));setCollection(old=>{const existing=old.find(x=>x.id===card.id&&x.grade.grade===condition&&x.ownedVariant===manualVariant&&x.ownedLanguage===manualLanguage);if(existing)return old.map(x=>x===existing?{...x,quantity:x.quantity+qty}:x);return [{...card,quantity:qty,grade:manualGrade(condition,manualDefects),ownedVariant:manualVariant,ownedLanguage:manualLanguage,conditionNotes:manualDefects,addedAt:new Date().toISOString()},...old]});setCatalogSelected(null);setManualQuantity(1);setManualCondition('NM');setManualVariant('Normal');setManualLanguage('Italiano');setManualDefects([]);setPage('collection');setError('');}
+ function startEditCollection(card:SavedCard){setEditingCollectionId(card.addedAt);setEditCondition(card.grade.grade);setEditQuantity(card.quantity);setEditVariant(card.ownedVariant||'Normal');setEditLanguage(card.ownedLanguage||'Italiano');setEditDefects(card.conditionNotes||[]);}
+ function saveEditCollection(card:SavedCard){const quantity=Math.max(1,Math.min(999,Math.round(editQuantity)));setCollection(old=>old.map(x=>x.addedAt===card.addedAt?{...x,quantity,grade:manualGrade(editCondition,editDefects),ownedVariant:editVariant,ownedLanguage:editLanguage,conditionNotes:editDefects}:x));setEditingCollectionId(null);}
 
  async function loadSets(){
   try{setError('');setSelectedSet(null);setSetCards([]);setSets(game==='pokemon'?await getPokemonSets():await getYugiohSets())}catch{setError('Impossibile caricare le espansioni')}
