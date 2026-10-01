@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import type {PointerEvent as ReactPointerEvent} from 'react';
 import {clamp,isConvexQuad,polygonArea,updateQuadStability,type Point,type QuadStability} from './scanner/geometry';
 import {estimateImageQuality,evaluateQuality,type QualityResult} from './scanner/quality';
-import {recognizeCardText,recognizeText} from './services/ocr';
+import {recognizeCardText} from './services/ocr';
 import {recognize,getPokemonSets,getYugiohSets,type CatalogCard} from './services/catalog';
 import {gradeImage,type GradeResult} from './services/grading';
 import {detectCardQuad,perspectiveWarp} from './scanner/vision';
@@ -78,7 +78,7 @@ export default function App(){
   capturedRef.current=true;stopCamera();const url=URL.createObjectURL(file);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
   const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d')?.drawImage(img,0,0);void processCanvas(c)};img.src=url;
  }
- function snapCorner(x:number,y:number,index:number){
+ function snapCorner(x:number,y:number){
   const c=sourceCanvas();if(!c)return {x,y};
   const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return {x,y};
   const radius=18,px=x/100*c.width,py=y/100*c.height;
@@ -99,7 +99,7 @@ export default function App(){
  function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
   const r=e.currentTarget.parentElement?.getBoundingClientRect();if(!r)return;
   const rawX=clamp((e.clientX-r.left)/r.width*100,3,97),rawY=clamp((e.clientY-r.top)/r.height*100,3,97);
-  const p=snapCorner(rawX,rawY,index);
+  const p=snapCorner(rawX,rawY);
   setCorners(old=>old.map((p0,i)=>i===index?p:p0));
  }
  useEffect(()=>{if(!cameraOn||!auto)return;autoTimer.current=window.setInterval(()=>{if(capturedRef.current)return;const c=sourceCanvas();if(!c)return;const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return;const frame=ctx.getImageData(0,0,c.width,c.height);const m=estimateImageQuality(frame,c.width,c.height);const detected=detectCardQuad(frame);if(detected&&detected.confidence>.62){setCorners(detected.points);setStability(s=>updateQuadStability(s,true));if(detected.confidence>.76&&stability.state==='ready')capture()}else{const valid=isConvexQuad(corners)&&polygonArea(corners)>1100&&m.contrast>14&&m.edgeConfidence>.08;setStability(s=>updateQuadStability(s,valid))}},700);return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}},[cameraOn,auto,stability.state,corners]);
