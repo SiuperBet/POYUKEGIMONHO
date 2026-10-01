@@ -5,6 +5,7 @@ import {estimateImageQuality,evaluateQuality,type QualityResult} from './scanner
 import {recognizeText} from './services/ocr';
 import {recognize,getPokemonSets,getYugiohSets,type CatalogCard} from './services/catalog';
 import {gradeImage,type GradeResult} from './services/grading';
+import {detectCardQuad,perspectiveWarp} from './scanner/vision';
 
 type Game='pokemon'|'yugioh';
 type SavedCard=CatalogCard & {quantity:number;grade:GradeResult;addedAt:string};
@@ -63,7 +64,7 @@ export default function App(){
    setQuality(evaluateQuality({areaRatio:polygonArea(corners)/10000,aspectRatio:aspect,brightness:m.brightness,contrast:m.contrast,edgeConfidence:m.edgeConfidence}));
    setGrade(gradeImage(image,polygonArea(corners)));
   }
-  const crop=perspectiveCrop(canvas,corners),blob=await new Promise<Blob|null>(r=>crop.toBlob(r,'image/jpeg',.92));
+  const crop=perspectiveWarp(canvas,corners);const blob=await new Promise<Blob|null>(r=>crop.toBlob(r,'image/jpeg',.92));
   if(blob){const url=URL.createObjectURL(blob);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
    try{const ocr=await recognizeText(blob);setOcrText(ocr.text);setOcrConfidence(ocr.confidence);const results=await recognize(game,ocr.text);setRecognition(results);if(results.length)setSelected(results[0])}
    catch{setError('OCR/catalogo non raggiungibile. Puoi cercare manualmente il nome della carta.')}
@@ -80,7 +81,7 @@ export default function App(){
   const x=clamp((e.clientX-r.left)/r.width*100,3,97),y=clamp((e.clientY-r.top)/r.height*100,3,97);
   setCorners(old=>old.map((p,i)=>i===index?{x,y}:p));
  }
- useEffect(()=>{if(!cameraOn||!auto)return;autoTimer.current=window.setInterval(()=>{if(capturedRef.current)return;const c=sourceCanvas();if(!c)return;const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return;const m=estimateImageQuality(ctx.getImageData(0,0,c.width,c.height),c.width,c.height);const valid=isConvexQuad(corners)&&polygonArea(corners)>1100&&m.contrast>14&&m.edgeConfidence>.08;setStability(s=>updateQuadStability(s,valid));if(valid&&stability.state==='ready')capture()},700);return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}},[cameraOn,auto,stability.state,corners]);
+ useEffect(()=>{if(!cameraOn||!auto)return;autoTimer.current=window.setInterval(()=>{if(capturedRef.current)return;const c=sourceCanvas();if(!c)return;const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return;const frame=ctx.getImageData(0,0,c.width,c.height);const m=estimateImageQuality(frame,c.width,c.height);const detected=detectCardQuad(frame);if(detected&&detected.confidence>.62){setCorners(detected.points);setStability(s=>updateQuadStability(s,true));if(detected.confidence>.76&&stability.state==='ready')capture()}else{const valid=isConvexQuad(corners)&&polygonArea(corners)>1100&&m.contrast>14&&m.edgeConfidence>.08;setStability(s=>updateQuadStability(s,valid))}},700);return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}},[cameraOn,auto,stability.state,corners]);
  async function manualSearch(){if(!manualQuery.trim())return;setProcessing(true);try{const r=await recognize(game,manualQuery);setRecognition(r);setSelected(r[0]||null);setOcrText(manualQuery)}catch{setError('Catalogo non raggiungibile')}setProcessing(false)}
  function addSelected(){if(!selected||!grade)return;setCollection(old=>[...old,{...selected,quantity:1,grade,addedAt:new Date().toISOString()}]);setPage('collection')}
  async function loadSets(){try{setError('');setSets(game==='pokemon'?await getPokemonSets():await getYugiohSets())}catch{setError('Impossibile caricare le espansioni')}}
