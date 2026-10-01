@@ -60,7 +60,7 @@ export function detectCardQuad(image:ImageData):DetectedQuad|null{
  }
  if(edges.length<80)return null;
 
- let best:{top:any;bottom:any;left:any;right:any;score:number}|null=null;
+ let best:{top:any;bottom:any;left:any;right:any;score:number;theta:number;perp:number}|null=null;
  for(let deg=-18;deg<=18;deg+=3){
   const t=deg*Math.PI/180;
   const perp=t+Math.PI/2;
@@ -77,16 +77,13 @@ export function detectCardQuad(image:ImageData):DetectedQuad|null{
     const ratio=1/Math.max(aspect,1/aspect);
     if(ratio<.45||ratio>.9)continue;
     const score=(top.score+bottom.score+left.score+right.score)*ratio*Math.min(1,area/(w*h*.18));
-    if(!best||score>best.score)best={top,bottom,left,right,score};
+    if(!best||score>best.score)best={top,bottom,left,right,score,theta:t,perp};
    }
   }
  }
  if(!best)return null;
- const {top,bottom,left,right}=best;
- const t=Math.atan2(Math.sin(0),Math.cos(0));
- const horizTheta=Math.PI/2;
- const vertTheta=t;
- const pts=[intersections({theta:horizTheta,rho:top.rho},{theta:vertTheta,rho:left.rho}),intersections({theta:horizTheta,rho:top.rho},{theta:vertTheta,rho:right.rho}),intersections({theta:horizTheta,rho:bottom.rho},{theta:vertTheta,rho:right.rho}),intersections({theta:horizTheta,rho:bottom.rho},{theta:vertTheta,rho:left.rho})];
+ const {top,bottom,left,right,theta,perp}=best;
+ const pts=[intersections({theta:perp,rho:top.rho},{theta,rho:left.rho}),intersections({theta:perp,rho:top.rho},{theta,rho:right.rho}),intersections({theta:perp,rho:bottom.rho},{theta,rho:right.rho}),intersections({theta:perp,rho:bottom.rho},{theta,rho:left.rho})];
  if(pts.some(p=>!p))return null;
  const points=pts as Point[];
  const confidence=Math.min(1,.55+Math.min(.3,best.score/50000)+Math.min(.15,edges.length/(w*h)*4));
