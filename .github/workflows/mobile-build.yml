@@ -21,6 +21,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile/package.json
       - run: npm install
-      - run: npx eas-cli@latest build --platform android --profile preview --non-interactive
+      - name: Initialize EAS project
+        run: npx eas-cli@latest init --force --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build Android APK
+        run: npx eas-cli@latest build --platform android --profile preview --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
