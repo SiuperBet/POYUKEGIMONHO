@@ -80,7 +80,7 @@ export default function App(){
   const x=clamp((e.clientX-r.left)/r.width*100,3,97),y=clamp((e.clientY-r.top)/r.height*100,3,97);
   setCorners(old=>old.map((p,i)=>i===index?{x,y}:p));
  }
- useEffect(()=>{if(!cameraOn||!auto)return;autoTimer.current=window.setInterval(()=>{if(stability.state==='ready'&&!capturedRef.current)capture()},700);return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}},[cameraOn,auto,stability.state]);
+ useEffect(()=>{if(!cameraOn||!auto)return;autoTimer.current=window.setInterval(()=>{if(capturedRef.current)return;const c=sourceCanvas();if(!c)return;const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return;const m=estimateImageQuality(ctx.getImageData(0,0,c.width,c.height),c.width,c.height);const valid=isConvexQuad(corners)&&polygonArea(corners)>1100&&m.contrast>14&&m.edgeConfidence>.08;setStability(s=>updateQuadStability(s,valid));if(valid&&stability.state==='ready')capture()},700);return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}},[cameraOn,auto,stability.state,corners]);
  async function manualSearch(){if(!manualQuery.trim())return;setProcessing(true);try{const r=await recognize(game,manualQuery);setRecognition(r);setSelected(r[0]||null);setOcrText(manualQuery)}catch{setError('Catalogo non raggiungibile')}setProcessing(false)}
  function addSelected(){if(!selected||!grade)return;setCollection(old=>[...old,{...selected,quantity:1,grade,addedAt:new Date().toISOString()}]);setPage('collection')}
  async function loadSets(){try{setError('');setSets(game==='pokemon'?await getPokemonSets():await getYugiohSets())}catch{setError('Impossibile caricare le espansioni')}}
