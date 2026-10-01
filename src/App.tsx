@@ -27,7 +27,7 @@ function blobToDataUrl(blob:Blob){return new Promise<string>((resolve,reject)=>{
 export default function App(){
  const [page,setPage]=useState<(typeof nav)[number][0]>('home');
  const [game,setGame]=useState<Game>('pokemon');
- const [cameraOn,setCameraOn]=useState(false),[auto,setAuto]=useState(true),[deviceLevel,setDeviceLevel]=useState<DeviceLevel>(getDeviceLevel());
+ const [cameraOn,setCameraOn]=useState(false),[auto,setAuto]=useState(true),[cameraConsentOpen,setCameraConsentOpen]=useState(false),[deviceLevel,setDeviceLevel]=useState<DeviceLevel>(getDeviceLevel());
  const [preview,setPreview]=useState<string|null>(null),[previewData,setPreviewData]=useState<string|null>(null),[corners,setCorners]=useState<Point[]>(initialCorners);
  const [stability,setStability]=useState<QuadStability>({good:0,bad:0,state:'searching'});
  const [quality,setQuality]=useState<QualityResult|null>(null),[collection,setCollection]=useState<SavedCard[]>(loadCollection);
@@ -39,7 +39,7 @@ export default function App(){
  const [ocrConfidence,setOcrConfidence]=useState(0),[processing,setProcessing]=useState(false);
  const [grade,setGrade]=useState<GradeResult|null>(null),[selected,setSelected]=useState<CatalogCard|null>(null);
  const [manualQuery,setManualQuery]=useState(''),[error,setError]=useState('');
- const videoRef=useRef<HTMLVideoElement>(null),stageRef=useRef<HTMLDivElement>(null),streamRef=useRef<MediaStream|null>(null),dragging=useRef<number|null>(null);
+ const videoRef=useRef<HTMLVideoElement>(null),stageRef=useRef<HTMLDivElement>(null),streamRef=useRef<MediaStream|null>(null),dragging=useRef<number|null>(null),galleryInputRef=useRef<HTMLInputElement>(null);
  const autoTimer=useRef<number|null>(null),autoStable=useRef(0),capturedRef=useRef(false),detectedCornersRef=useRef<Point[]|null>(null);
 
  useEffect(()=>()=>{streamRef.current?.getTracks().forEach(t=>t.stop());if(preview)URL.revokeObjectURL(preview);if(autoTimer.current)clearInterval(autoTimer.current)},[preview]);
@@ -47,7 +47,7 @@ export default function App(){
  useEffect(()=>{setStability(s=>updateQuadStability(s,isConvexQuad(corners)&&polygonArea(corners)>1100))},[corners]);
 
  async function startCamera(){
-  setError('');
+  setCameraConsentOpen(false);setError('');
   void enableDeviceLevel().then(setDeviceLevel);
   try{
    if(!navigator.mediaDevices?.getUserMedia)throw new Error('media');
@@ -67,7 +67,7 @@ export default function App(){
  function resetScan(){
   stopCamera();setPreview(old=>{if(old)URL.revokeObjectURL(old);return null});setPreviewData(null);setCorners(initialCorners);detectedCornersRef.current=null;setRecognition([]);setSelected(null);setGrade(null);setOcrText('');setOcrConfidence(0);setQuality(null);setError('');setStability({good:0,bad:0,state:'searching'});capturedRef.current=false;autoStable.current=0;
  }
- function openScan(){resetScan();setPage('scan');void startCamera()}
+ function openScan(){resetScan();setPage('scan');setCameraConsentOpen(true)}
 
  function sourceCanvas(){
   const v=videoRef.current,stage=stageRef.current;
@@ -107,9 +107,9 @@ export default function App(){
   finally{stopCamera();setProcessing(false)}
  }
 
- function capture(){const c=sourceCanvas();if(c)void processCanvas(c,corners)}
+ function capture(){const c=sourceCanvas();if(!c||processing)return;const frame=c.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,c.width,c.height);const detected=frame?detectCardQuad(frame):null;const usable=stability.state==='ready'?corners:(detected&&detected.confidence>.66?detected.points:corners);void processCanvas(c,usable)}
  function importImage(file:File){
-  setError('');capturedRef.current=true;stopCamera();
+  setError('');capturedRef.current=true;setCameraConsentOpen(false);stopCamera();
   const url=URL.createObjectURL(file);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
   const img=new Image();
   img.onload=()=>{
@@ -147,7 +147,7 @@ export default function App(){
  }
 
  useEffect(()=>{
-  if(!cameraOn||!auto)return;
+  if(!cameraOn)return;
   autoTimer.current=window.setInterval(()=>{
    if(capturedRef.current)return;
    const c=sourceCanvas();if(!c)return;
@@ -162,7 +162,7 @@ export default function App(){
     setCorners(smoothed);setStability(s=>updateQuadStability(s,true));
     const level=getDeviceLevel();setDeviceLevel(level);
     autoStable.current=level.available&&level.tilt>8?0:autoStable.current+1;
-    if(detected.confidence>.70&&autoStable.current>=4&&(!level.available||level.tilt<=8)){autoStable.current=0;void processCanvas(c,smoothed)}
+    if(auto&&detected.confidence>.70&&autoStable.current>=4&&(!level.available||level.tilt<=8)){autoStable.current=0;void processCanvas(c,smoothed)}
    }else{autoStable.current=0;detectedCornersRef.current=null;setStability(s=>updateQuadStability(s,false))}
   },500);
   return()=>{if(autoTimer.current)clearInterval(autoTimer.current)}
@@ -202,11 +202,11 @@ export default function App(){
  {page==='home'&&<section className="hero"><p className="eyebrow">COLLECTOR INTELLIGENCE</p><h1>Scan. Understand. Collect.</h1><p>Scanner reale con auto-capture, OCR locale, riconoscimento catalogo, condizione, collezione, espansioni e prezzi.</p><div className="actions"><button className="primary" onClick={openScan}>Apri scanner</button><button onClick={()=>setPage('collection')}>Collezione ({collection.length})</button></div><div className="game"><span>Gioco</span><button className={game==='pokemon'?'selected':''} onClick={()=>setGame('pokemon')}>Pokémon</button><button className={game==='yugioh'?'selected':''} onClick={()=>setGame('yugioh')}>Yu-Gi-Oh!</button></div><div className="home-metrics"><div><b>{collection.reduce((n,c)=>n+c.quantity,0)}</b><span>carte</span></div><div><b>{collection.length}</b><span>record</span></div><div><b>{totalValue?totalValue.toFixed(2)+' €':'—'}</b><span>valore noto EUR</span></div></div></section>}
 
  {page==='scan'&&<section><div className="scan-head"><div><p className="eyebrow">SCAN • RECOGNITION • GRADING</p><h2>Inquadra una carta</h2></div><button onClick={()=>{stopCamera();setPage('home')}}>Chiudi</button></div><div className="scanner" ref={stageRef}>
- {cameraOn&&<video ref={videoRef} className="video live" playsInline muted/>}{!cameraOn&&!preview&&<div className="camera-off"><strong>Scanner pronto</strong><span>Attiva la camera o importa una foto.</span><button className="primary" onClick={()=>void startCamera()}>Attiva camera</button></div>}{preview&&<img className="photo-preview" src={preview} alt="Carta acquisita"/>}
+ {cameraOn&&<video ref={videoRef} className="video live" playsInline muted/>}{cameraConsentOpen&&!cameraOn&&!preview&&<div className="camera-consent-backdrop" role="dialog" aria-modal="true"><div className="camera-consent"><div className="consent-icon">◉</div><p className="eyebrow">FOTOCAMERA</p><h3>Consenti l'accesso alla fotocamera</h3><p>La fotocamera resta aperta finché non acquisisci o chiudi lo scanner. L'acquisizione automatica è separata da questo permesso.</p><div className="consent-actions"><button className="btn" onClick={()=>setCameraConsentOpen(false)}>Galleria</button><button className="primary" onClick={()=>void startCamera()}>Consenti e apri fotocamera</button></div></div></div>}{!cameraOn&&!preview&&<div className="camera-off"><strong>Scanner pronto</strong><span>Attiva la camera o importa una foto.</span><button className="primary" onClick={()=>void startCamera()}>Attiva camera</button></div>}{preview&&<img className="photo-preview" src={preview} alt="Carta acquisita"/>}
  <svg className="quad-overlay" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points={corners.map(p=>p.x+','+p.y).join(' ')}/></svg>
  {corners.map((p,i)=><button key={i} className="corner" style={{left:p.x+'%',top:p.y+'%'}} onPointerDown={e=>{dragging.current=i;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(dragging.current===i)moveCorner(i,e)}} onPointerUp={()=>{dragging.current=null}} onPointerCancel={()=>{dragging.current=null}} aria-label={'Sposta angolo '+(i+1)}/>)}
  <div className="scan-top"><span className={'pill '+(stability.state==='ready'?'good':'')}>● {stableLabel}</span><span className={'pill '+(deviceLevel.available&&deviceLevel.tilt<=6?'good':'')}>◉ {deviceLevel.available?(deviceLevel.tilt<=6?'Bolla OK':`Inclina ${deviceLevel.tilt.toFixed(0)}°`):'Bolla non disponibile'}</span><span className="pill">{quality?.ok?'Qualità OK':'Qualità in analisi'} · Auto {auto?'ON':'OFF'}</span></div><div className="level-bubble"><span className="level-dot" style={{transform:`translate(${Math.max(-34,Math.min(34,(deviceLevel.gamma||0)*1.2))}px,${Math.max(-34,Math.min(34,(deviceLevel.beta||0)*1.2))}px)`}}/></div><div className="scan-bottom"><button className="shutter" onClick={capture} aria-label="Scatta" disabled={processing}/></div></div>
- <div className="scanner-footer"><label className="btn">Galleria<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{const f=e.target.files?.[0];if(f)importImage(f)}}/></label><button className="btn" onClick={()=>setAuto(v=>!v)}>Auto Capture: {auto?'ON':'OFF'}</button><button className="btn" onClick={resetScan}>Nuova scansione</button></div>
+ <div className="scanner-footer"><button className="btn" onClick={()=>galleryInputRef.current?.click()}>Galleria</button><input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{const f=e.target.files?.[0];e.currentTarget.value='';if(f)importImage(f)}} style={{display:'none'}}/><button className="btn" onClick={()=>setAuto(v=>!v)}>Auto Capture: {auto?'ON':'OFF'}</button><button className="btn" onClick={resetScan}>Nuova scansione</button></div>
  <div className="review"><div className="review-head"><div><p className="eyebrow">RISULTATO</p><h3>{processing?'Analisi in corso…':selected?.name||'Nessuna carta riconosciuta'}</h3></div>{grade&&<span className="grade">{grade.grade} · {grade.score}/100</span>}</div>
  {ocrText&&<p className="ocr">OCR: <b>{ocrText.slice(0,220)}</b> · confidenza {(ocrConfidence*100).toFixed(0)}%</p>}{grade&&<><div className="chips"><span>Condizione: {grade.grade}</span><span>Score: {grade.score}/100</span><span>Confidenza: {(grade.confidence*100).toFixed(0)}%</span><span>Centratura: {grade.centering}/100</span>{grade.defects.map(d=><span key={d}>{d}</span>)}</div><div className="subgrades"><b>Cent. {grade.subgrades.centering}</b><b>Angoli {grade.subgrades.corners}</b><b>Bordi {grade.subgrades.edges}</b><b>Superficie {grade.subgrades.surface}</b></div></>}
  <div className="manual-search"><input value={manualQuery} onChange={e=>setManualQuery(e.target.value)} placeholder="Nome, numero, set…"/><button onClick={()=>void manualSearch()} disabled={processing}>Cerca catalogo</button></div>
