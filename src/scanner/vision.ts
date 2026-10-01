@@ -113,7 +113,9 @@ function solve8(a:number[][],b:number[]):number[]{
  return m.map(r=>r[n]);
 }
 export function perspectiveWarp(source:HTMLCanvasElement,points:Point[],outW=480,outH=672){
- const src=points.map(p=>({x:p.x/100*source.width,y:p.y/100*source.height}));
+ const center=points.reduce((a,p)=>({x:a.x+p.x/4,y:a.y+p.y/4}),{x:0,y:0});
+ const expanded=points.map(p=>({x:Math.max(0,Math.min(100,center.x+(p.x-center.x)*1.045)),y:Math.max(0,Math.min(100,center.y+(p.y-center.y)*1.045))}));
+ const src=expanded.map(p=>({x:p.x/100*source.width,y:p.y/100*source.height}));
  const dst=[{x:0,y:0},{x:outW-1,y:0},{x:outW-1,y:outH-1},{x:0,y:outH-1}];
  const a:number[][]=[],b:number[]=[];
  for(let i=0;i<4;i++){const s=src[i],d=dst[i];a.push([d.x,d.y,1,0,0,0,-s.x*d.x,-s.x*d.y]);b.push(s.x);a.push([0,0,0,d.x,d.y,1,-s.y*d.x,-s.y*d.y]);b.push(s.y)}
