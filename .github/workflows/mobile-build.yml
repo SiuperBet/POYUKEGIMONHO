@@ -33,9 +33,9 @@ jobs:
       - name: Typecheck mobile
         run: npm run typecheck
       - name: Generate Android project
-        run: npx expo prebuild --platform android --non-interactive
+        run: CI=1 npx expo prebuild --platform android
       - name: Build debug APK
-        run: chmod +x android/gradlew && android/gradlew assembleDebug
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
