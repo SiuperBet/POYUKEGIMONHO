@@ -21,7 +21,7 @@ type ImageStats={
 };
 
 function regionBox(x:number,y:number,w:number,h:number){return{x,y,width:w,height:h}}
-function analysePixels(pixels:Uint8Array,width:number,height:number,x0:number,y0:number,x1:number,y1:number):RegionStats{
+function analysePixels(pixels:Uint8Array|Float32Array,width:number,height:number,x0:number,y0:number,x1:number,y1:number):RegionStats{
   const sx=Math.max(0,Math.floor(x0)),sy=Math.max(0,Math.floor(y0)),ex=Math.min(width-1,Math.ceil(x1)),ey=Math.min(height-1,Math.ceil(y1));
   const rw=Math.max(1,ex-sx),rh=Math.max(1,ey-sy),gray=new Float32Array(rw*rh);
   let sum=0,sum2=0,edge=0,line=0,white=0,dark=0,texture=0,n=0;
@@ -103,6 +103,25 @@ function defectsFromStats(stats:ImageStats,side:'front'|'back'):DefectRecord[]{
   stats.corners.forEach((r,i)=>add('corner-'+side+'-'+i,'puntino_bianco',r.white,r.confidence,r.region,'Possibile whitening/punto bianco sull’angolo.'));
   stats.edges.forEach((r,i)=>add('edge-'+side+'-'+i,'whitening',r.white,r.confidence,r.region,'Possibile whitening/usura del bordo.'));
   return out;
+}
+
+export async function analyzeCardCondition(frontUri:string,backUri?:string):Promise<VisualAnalysis>{
+  const front=await inspect(frontUri);
+  const back=backUri?await inspect(backUri).catch(()=>undefined):undefined;
+  const avg=back?(front.score*.58+back.score*.42):front.score;
+  const defects=[...defectsFromStats(front,'front'),...(back?defectsFromStats(back,'back'):[])];
+  const severe=defects.filter(d=>d.severity==='high').length;
+  const medium=defects.filter(d=>d.severity==='medium').length;
+  const confidence=Math.round(clamp((back?64:48)+(front.quality>70?8:0)+(back&&back.quality>70?8:0)-severe*5-medium*2,28,90));
+  const notes:string[]=[];
+  if(!back)notes.push('Il retro non è stato acquisito: la valutazione è preliminare.');
+  if(front.sharpness<42)notes.push('Fronte poco leggibile: acquisire una foto più nitida prima del voto finale.');
+  if(back&&back.sharpness<42)notes.push('Retro poco leggibile: acquisire una foto più nitida prima del voto finale.');
+  if(front.glare>35)notes.push('Riflessi forti sul fronte: usare luce più diffusa o inclinazione diversa.');
+  if(back&&back.glare>35)notes.push('Riflessi forti sul retro: usare luce più diffusa o inclinazione diversa.');
+  if(defects.length)notes.push('Sono stati rilevati segnali di difetto; i segnali ambigui devono essere verificati con foto ravvicinata o luce angolata.');
+  else notes.push('Nessun segnale forte rilevato dal controllo automatico.');
+  return {condition:conditionFromScore(avg),score:Math.round(avg),confidence,frontQuality:Math.round(front.quality),backQuality:back?Math.round(back.quality):undefined,defects,hasBack:Boolean(back),engine:'local-vision-assisted-v2',notes};
 }
 
 export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Promise<ProfessionalAnalysis>{
