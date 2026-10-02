@@ -34,7 +34,6 @@ export default function App(){
   const [masterSetMode,setMasterSetMode]=useState(false);
   const [collectionLanguage,setCollectionLanguage]=useState<'all'|'ja'|'zh-cn'|'zh-tw'|'international'>('all');
   const [collectionCardSize,setCollectionCardSize]=useState<'small'|'medium'|'large'>('large');
-  const [collectionToolsOpen,setCollectionToolsOpen]=useState(false);
   const [collectionFilterOpen,setCollectionFilterOpen]=useState(false);
   const [collectionSortOpen,setCollectionSortOpen]=useState(false);
   const [collectionOwnershipFilter,setCollectionOwnershipFilter]=useState<'all'|'owned'|'missing'|'duplicates'>('all');
@@ -236,7 +235,6 @@ export default function App(){
     <View style={styles.collectionTopBar}>
       <TouchableOpacity onPress={()=>setTab('home')} style={styles.collectionBack}><Text style={styles.collectionBackText}>‹</Text></TouchableOpacity>
       <View style={styles.flex}><Text style={styles.h2}>Le mie carte</Text><Text style={styles.muted}>{collectionTotals.ownedUnique} possedute · {collectionTotals.missing} mancanti</Text></View>
-      <TouchableOpacity onPress={()=>setCollectionSort(collectionSort.endsWith('Asc')?collectionSort.replace('Asc','Desc') as CollectionSort:collectionSort.replace('Desc','Asc') as CollectionSort)} style={styles.toolIcon}><Text style={styles.toolIconText}>↕</Text></TouchableOpacity>
       <TouchableOpacity onPress={()=>setCollectionSortOpen(true)} style={styles.toolIcon}><Text style={styles.toolIconText}>↕</Text></TouchableOpacity>
       <TouchableOpacity onPress={()=>setCollectionFilterOpen(true)} style={styles.toolIcon}><Text style={styles.toolIconText}>☷</Text></TouchableOpacity>
     </View>
