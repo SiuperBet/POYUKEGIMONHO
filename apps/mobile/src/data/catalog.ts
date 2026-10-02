@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type Game='pokemon'|'yugioh';
 export type CatalogCard={
   id:string; game:Game; name:string; setId?:string; setName?:string; number?:string;
-  rarity?:string; image?:string; priceEUR?:number; priceUSD?:number; updatedAt?:string;
+  rarity?:string; image?:string; priceEUR?:number; priceUSD?:number; trend7EUR?:number; trend30EUR?:number; updatedAt?:string;
 };
 export type CatalogSet={id:string;game:Game;name:string;code?:string;cardCount?:number;releaseDate?:string;logo?:string};
 
@@ -56,7 +56,7 @@ export async function getPokemonSetCards(setId:string):Promise<CatalogCard[]>{
     const full=await Promise.all(cards.map(async (brief:any)=>{
       try{
         const c=await getJson<any>('https://api.tcgdex.net/v2/en/cards/'+encodeURIComponent(setId)+'-'+encodeURIComponent(brief.localId));
-        return {id:c.id||setId+'-'+brief.localId,game:'pokemon' as const,name:c.name||brief.name||'Unknown',setId,setName:set.name,number:numberOf(c.localId||brief.localId),rarity:c.rarity,image:c.image?c.image+'/high.webp':undefined,priceEUR:priceFromPokemon(c)};
+        return {id:c.id||setId+'-'+brief.localId,game:'pokemon' as const,name:c.name||brief.name||'Unknown',setId,setName:set.name,number:numberOf(c.localId||brief.localId),rarity:c.rarity,image:c.image?c.image+'/high.webp':undefined,priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined};
       }catch{
         return {id:setId+'-'+brief.localId,game:'pokemon' as const,name:brief.name||'Unknown',setId,setName:set.name,number:numberOf(brief.localId),image:brief.image?brief.image+'/high.webp':undefined};
       }
@@ -90,7 +90,7 @@ export async function searchCards(game:Game,query:string):Promise<CatalogCard[]>
   if(!q)return [];
   if(game==='pokemon'){
     const data=await getJson<any[]>('https://api.tcgdex.net/v2/en/cards?name='+encodeURIComponent(q));
-    return data.slice(0,40).map(c=>({id:c.id,game:'pokemon',name:c.name,setId:c.set?.id,setName:c.set?.name,number:numberOf(c.localId),rarity:c.rarity,image:c.image?c.image+'/high.webp':undefined,...pricingFromPokemon(c)}));
+    return data.slice(0,40).map(c=>({id:c.id,game:'pokemon',name:c.name,setId:c.set?.id,setName:c.set?.name,number:numberOf(c.localId),rarity:c.rarity,image:c.image?c.image+'/high.webp':undefined,priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined}));
   }
   const data=await getJson<any>('https://db.ygoprodeck.com/api/v7/cardinfo.php?fname='+encodeURIComponent(q)+'&num=40&offset=0');
   return (data.data||[]).map((c:any)=>({id:String(c.id),game:'yugioh',name:c.name,number:c.card_sets?.[0]?.set_code,rarity:c.card_sets?.[0]?.set_rarity,image:c.card_images?.[0]?.image_url_small,priceEUR:priceFromYgo(c),priceUSD:Number(c.card_prices?.[0]?.tcgplayer_price)||undefined}));
