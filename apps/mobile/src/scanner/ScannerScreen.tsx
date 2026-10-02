@@ -5,6 +5,7 @@ import {getPokemonSetCards,getYugiohSetCards} from '../data/catalog';
 import {CONDITIONS,Condition,estimateCardValueEUR} from '../data/store';
 import type {InspectionPhoto,ProfessionalAnalysis} from '../data/store';
 import {PROFESSIONAL_INSPECTION_STEPS} from '../data/inspectionGuidance';
+import {CardEdgeEditor} from './CardEdgeEditor';
 import type {RecognitionResult} from '../data/recognition';
 import type {VisualAnalysis} from '../data/visualGrading';
 import DocumentScanner from 'react-native-document-scanner-plugin';
@@ -27,48 +28,44 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
   const [recognizedVariants,setRecognizedVariants]=useState<CatalogCard[]>([]);
   const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
   const [professionalRunning,setProfessionalRunning]=useState(false);
+  const [editorOpen,setEditorOpen]=useState(false);
   const launched=useRef(false);
 
   const scanBack=async()=>{if(!gradedId||scanningBack)return;setScanningBack(true);setError(null);setMessage('Inquadra il retro della carta…');try{const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned){setMessage('Retro non acquisito. Il retro resta opzionale.');return}const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;setBackPhoto(uri);await onBackCaptured?.(gradedId,uri);setMessage('Analisi fronte + retro in corso…');const {analyzeCardCondition}=await import('../data/visualGrading'); const analysis=await analyzeCardCondition(lastPhoto||uri,uri).catch(()=>null);if(analysis){setVisualAnalysis(analysis);if(!conditionTouched){setSelectedCondition(analysis.condition);await onConditionSelected?.(gradedId,analysis.condition)}await onVisualAnalysis?.(gradedId,analysis)}setMessage('✓ Retro acquisito • valutazione fronte + retro aggiornata');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back/i.test(String(errorValue??''));setMessage(cancelled?'Acquisizione retro annullata.':'Impossibile acquisire il retro. Puoi continuare senza retro.');}finally{setScanningBack(false)}};
 
+  const processCapturedPhoto=async(uri:string)=>{
+    setLastPhoto(uri);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);
+    setMessage('Bordo carta verificato • avvio riconoscimento multilingua…');
+    const {recognizeCardImage}=await import('../data/recognition');
+    const identified=await recognizeCardImage(uri,game).catch(()=>null);
+    setRecognition(identified);
+    setMessage(identified?.card?'Carta riconosciuta automaticamente.':identified?.candidates?.length?'Possibile corrispondenza: scegli una delle carte proposte.':'Carta acquisita: nessuna corrispondenza certa, verifica manualmente.');
+    const savedId=await onCaptured?.(uri,identified?.card||identified?.candidates?.[0]);
+    setGradedId(savedId);
+    setCollectionSaved(false);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   const smartScan=async()=>{
     if(scannerOpen)return;
-    setError(null);
-    setScannerOpen(true);
-    setMessage('Apertura scanner nativo…');
+    setError(null);setScannerOpen(true);setMessage('Apertura scanner nativo…');
     try{
-      const result=await DocumentScanner.scanDocument({
-        maxNumDocuments:1,
-        croppedImageQuality:100,
-        // Il rilevamento nativo ML Kit collega automaticamente i quattro lati e corregge la prospettiva.
-        // Manteniamo la schermata di verifica dei vertici per consentire la conferma manuale quando serve.
-      });
+      const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});
       const scanned=result.scannedImages?.[0];
       if(scanned){
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
-        setLastPhoto(uri);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);
+        setLastPhoto(uri);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);
+        await new Promise<void>(resolve=>RNImage.getSize(uri,(width,height)=>{const aspect=width/Math.max(1,height);setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});resolve();},()=>resolve()));
         setMessage('✓ 4 lati rilevati • 4 angoli collegati • prospettiva corretta');
-        await new Promise<void>(resolve=>RNImage.getSize(uri, (width,height)=>{const aspect=width/Math.max(1,height);setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});resolve();}, ()=>resolve()));
-        setMessage('Bordo carta verificato • avvio riconoscimento…');
-        const {recognizeCardImage}=await import('../data/recognition'); const identified=await recognizeCardImage(uri,game).catch(()=>null);
-        setRecognition(identified);
-        setMessage(identified?.card?'Carta riconosciuta automaticamente.':'Carta acquisita: riconoscimento da verificare.');
-        const savedId=await onCaptured?.(uri,identified?.card||undefined);
-        setGradedId(savedId);
-        setCollectionSaved(false);
+        setEditorOpen(true);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }else{
-        setMessage('Nessuna carta acquisita.');
-      }
+      }else setMessage('Nessuna carta acquisita.');
     }catch(errorValue){
-      const text=String(errorValue??'');
-      const cancelled=/cancel|dismiss|back/i.test(text);
+      const text=String(errorValue??'');const cancelled=/cancel|dismiss|back/i.test(text);
       setMessage(cancelled?'Scansione annullata.':'Scanner nativo non disponibile.');
       if(!cancelled)setError('Il sistema non ha potuto avviare lo scanner. Puoi riprovare.');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(()=>{});
-    }finally{
-      setScannerOpen(false);
-    }
+    }finally{setScannerOpen(false);}
   };
 
   useEffect(()=>{
@@ -79,8 +76,8 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
 
   const chooseCondition=async(condition:Condition)=>{setConditionTouched(true);setSelectedCondition(condition);if(gradedId)await onConditionSelected?.(gradedId,condition);setCollectionSaved(false)};
   const saveCollection=async()=>{const card=selectedRecognizedCard||recognition?.card;if(!card||!onSaveCollection)return;await onSaveCollection(card,selectedCondition,lastPhoto||undefined,backPhoto||undefined,visualAnalysis||undefined,professionalAnalysis||undefined);if(gradedId){await onConditionSelected?.(gradedId,selectedCondition);await onCardSelected?.(gradedId,card);}setCollectionSaved(true);setMessage('Carta salvata nella collezione con la condizione selezionata.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)};
-  const retry=()=>{setLastPhoto(null);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
-  const rescan=()=>{setLastPhoto(null);setBackPhoto(null);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);void smartScan();};
+  const retry=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
+  const rescan=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);void smartScan();};
 
   return <View style={styles.root}>
     <View style={styles.header}>
@@ -92,6 +89,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
       <View style={styles.nativeBadge}><Text style={styles.nativeBadgeText}>NATIVO</Text></View>
     </View>
 
+    {editorOpen&&lastPhoto&&<CardEdgeEditor uri={lastPhoto} onCancel={()=>{setEditorOpen(false);setMessage('Rifinitura annullata • immagine nativa mantenuta.');}} onConfirm={async uri=>{setEditorOpen(false);await processCapturedPhoto(uri);}}/>}
     <View style={styles.stage}>
       {lastPhoto?
         <Image source={{uri:lastPhoto}} style={styles.preview} resizeMode="contain"/>:

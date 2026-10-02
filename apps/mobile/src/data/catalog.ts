@@ -61,7 +61,7 @@ export async function getSets(game:Game):Promise<CatalogSet[]>{
       const detailed=await mapWithConcurrency(sets,6,async(s:any)=>{
         const base={id:String(s.id),game:'pokemon' as const,name:s.name,cardCount:s.cardCount?.total,logo:s.logo,symbol:s.symbol};
         try{
-          const d=await getJson<any>('https://api.tcgdex.net/v2/en/sets/'+encodeURIComponent(s.id));
+          const d=await getJson<any>('https://api.tcgdex.net/v2/'+String(s.language||'en')+'/sets/'+encodeURIComponent(String(s.sourceId||s.id)));
           return {...base,releaseDate:d.releaseDate,seriesId:d.serie?.id,seriesName:d.serie?.name,seriesLogo:seriesMap.get(String(d.serie?.id))?.logo};
         }catch{
           return {...base};
@@ -91,7 +91,7 @@ export async function hydrateSetDates(game:Game,sets:CatalogSet[]):Promise<Catal
   });
   const byId=new Map(details.map(s=>[s.id,s]));
   const hydrated=sets.map(s=>byId.get(s.id)||s);
-  void AsyncStorage.setItem('catalog:pokemon:sets:v5',JSON.stringify(hydrated));
+  void AsyncStorage.setItem('catalog:pokemon:sets:v6',JSON.stringify(hydrated));
   return hydrated;
 }
 

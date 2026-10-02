@@ -17,7 +17,13 @@ const COLLECTION='poyukegimonho:mobile:collection:v1';
 const GRADED='poyukegimonho:mobile:graded:v1';
 
 async function read<T>(key:string,fallback:T):Promise<T>{const raw=await AsyncStorage.getItem(key);if(!raw)return fallback;try{return JSON.parse(raw) as T}catch{return fallback}}
-export const loadCollection=()=>read<CollectionItem[]>(COLLECTION,[]);
+export async function loadCollection(){
+  const current=await read<CollectionItem[]>(COLLECTION,[]);
+  if(current.length)return current;
+  const legacy=await read<CollectionItem[]>(LEGACY_COLLECTION,[]);
+  if(legacy.length)await AsyncStorage.setItem(COLLECTION,JSON.stringify(legacy));
+  return legacy;
+}
 export const loadGraded=()=>read<GradedItem[]>(GRADED,[]);
 export async function saveCollection(items:CollectionItem[]){await AsyncStorage.setItem(COLLECTION,JSON.stringify(items))}
 export async function saveGraded(items:GradedItem[]){await AsyncStorage.setItem(GRADED,JSON.stringify(items))}

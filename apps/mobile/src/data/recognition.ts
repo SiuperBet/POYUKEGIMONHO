@@ -21,15 +21,21 @@ function extractNumber(text:string){
   return matches[0]?.replace(/\s+/g,'');
 }
 
-function detectLanguage(text:string){
+function detectLanguageCode(text:string){
+  if(/[\u3040-\u30ff]/.test(text))return 'ja' as const;
+  if(/[\u4e00-\u9fff]/.test(text))return 'zh-cn' as const;
   const t=normalize(text);
-  if(/\b(pokemon|dresseur|evolutions|objet|energie)\b/.test(t))return 'Francese';
-  if(/\b(pokemon|trainer|energy|evolutions)\b/.test(t))return 'Inglese';
-  if(/\b(pokemon|trainer|energia|evoluzioni)\b/.test(t))return 'Italiano';
-  if(/[\u3040-\u30ff\u4e00-\u9fff]/.test(text))return 'Giapponese';
+  if(/\b(dresseur|evolutions|objet|energie)\b/.test(t))return 'fr' as const;
+  if(/\b(entrenador|evoluciones|objeto|energia)\b/.test(t))return 'es' as const;
+  if(/\b(allenatore|energia|evoluzioni|strumento)\b/.test(t))return 'it' as const;
+  if(/\b(trainer|energy|evolutions)\b/.test(t))return 'en' as const;
+  if(/\b(trainer|energie|entwicklungen)\b/.test(t))return 'de' as const;
   return undefined;
 }
-
+function detectLanguage(text:string){
+  const code=detectLanguageCode(text);
+  return code==='ja'?'Giapponese':code==='zh-cn'?'Cinese semplificato':code==='fr'?'Francese':code==='es'?'Spagnolo':code==='it'?'Italiano':code==='de'?'Tedesco':code==='en'?'Inglese':undefined;
+}
 function scoreCandidate(card:CatalogCard,ocr:string,number?:string){
   const source=normalize(ocr);
   const name=normalize(card.name);
@@ -64,10 +70,14 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   const ocr=await TextRecognition.recognize(uri);
   const text=ocr.text||'';
   const number=extractNumber(text);
-  const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.length>=3&&x.length<=60);
-  const queries=[...new Set(lines.filter(x=>!/^\d+[\s/]/.test(x)).slice(0,4))];
-  const batches=await Promise.all(queries.map(q=>searchCards(game,q).catch(()=>[])));
-  const candidates=[...new Map(batches.flat().map(c=>[c.id,c])).values()];
+  const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.length>=3&&x.length<=80);
+  const numberQuery=number||undefined;
+  const queries=[...new Set([...(numberQuery?[numberQuery]:[]),...lines.filter(x=>!/^[\d+\s/]/.test(x)).slice(0,5)])];
+  const detected=game==='pokemon'?detectLanguageCode(text):undefined;
+  const languages=game==='pokemon'?[...(detected?[detected]:[]),'en','it','ja','zh-cn','zh-tw','fr','de','es','pt-br'].filter((v,i,a)=>a.indexOf(v)===i):[undefined];
+  const batches=await Promise.all(queries.flatMap(q=>languages.map(lang=>searchCards(game,q,lang as any).catch(()=>[]))));
+  let candidates=[...new Map(batches.flat().map(c=>[c.id,c])).values()];
+  if(candidates.length===0&&numberQuery)candidates=await searchCards(game,numberQuery,game==='pokemon'?detected:undefined).catch(()=>[]);
   const baseRanked=candidates.map(card=>({card,score:scoreCandidate(card,text,number)})).sort((a,b)=>b.score-a.score).slice(0,12);
   const ranked=(await Promise.all(baseRanked.map(async x=>({card:x.card,score:Math.min(1,x.score*.72+(await visualSimilarity(uri,x.card.image))*.28)})))).sort((a,b)=>b.score-a.score);
   const top=ranked[0];
