@@ -3,7 +3,7 @@ import {SaveFormat} from 'expo-image-manipulator';
 import {Skia,ColorType,AlphaType} from '@shopify/react-native-skia';
 import type {Condition,DefectRecord,ProfessionalAnalysis,InspectionPhoto} from './store';
 
-export type VisualAnalysis={condition:Condition;score:number;confidence:number;frontQuality:number;backQuality?:number;defects:DefectRecord[];hasBack:boolean;engine:'local-vision-assisted';notes:string[];professional?:ProfessionalAnalysis};
+export type VisualAnalysis={condition:Condition;score:number;confidence:number;frontQuality:number;backQuality?:number;defects:DefectRecord[];hasBack:boolean;engine:'local-vision-assisted'|'local-vision-assisted-v2';notes:string[];professional?:ProfessionalAnalysis};
 
 function clamp(v:number,min=0,max=100){return Math.max(min,Math.min(max,v))}
 function conditionFromScore(score:number):Condition{
@@ -126,7 +126,6 @@ export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Pr
   const edgeAnomaly=frontStats?frontStats.edges.reduce((s,r)=>s+r.score,0)/4:100;
   const corners=Math.round(clamp(100-cornerAnomaly));
   const edges=Math.round(clamp(100-edgeAnomaly));
-  const centering=50;
   const centeringStatus:'needs-card-geometry'='needs-card-geometry';
   const overall=Math.round(clamp(corners*.25+edges*.25+surface*.5));
   const requiresMorePhotos=!front||photos.length<3||quality<58||Boolean(frontStats&&frontStats.glare>38);
@@ -147,7 +146,7 @@ export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Pr
     completed:Boolean(front&&photos.length>=2),
     photos,
     centeringStatus,
-    subgrades:{centering,corners,edges,surface},
+    subgrades:{corners,edges,surface},
     overall,
     confidence,
     alterationCheck:'review',
