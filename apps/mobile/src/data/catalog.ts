@@ -20,6 +20,20 @@ async function cache<T>(key:string,loader:()=>Promise<T>):Promise<T>{
   });
 }
 
+async function cacheNonEmpty<T>(key:string,loader:()=>Promise<T[]>):Promise<T[]>{
+  const raw=await AsyncStorage.getItem(key);
+  if(raw){try{const parsed=JSON.parse(raw) as T[];if(Array.isArray(parsed)&&parsed.length>0)return parsed}catch{}}
+  const value=await loader();
+  if(Array.isArray(value)&&value.length>0)void AsyncStorage.setItem(key,JSON.stringify(value));
+  return value;
+}
+
+const legacyPokemonImage=(setId:string,localId:string)=>{
+  if(!/^ecard/i.test(setId))return undefined;
+  const n=String(localId).replace(/^H0*(\d+)$/i,(_,d)=>'H'+d).replace(/^0+(\d+)$/,'$1');
+  return 'https://images.pokemontcg.io/'+encodeURIComponent(setId)+'/'+encodeURIComponent(n)+'.png';
+};
+
 async function getJson<T>(url:string):Promise<T>{
   const response=await fetch(url);
   if(!response.ok)throw new Error('HTTP '+response.status);
@@ -95,26 +109,41 @@ function priceFromYgo(card:any){
 }
 
 export async function getPokemonSetCards(setId:string):Promise<CatalogCard[]>{
-  const key='catalog:pokemon:set:v3:'+setId;
-  return cache(key,async()=>{
-    const set=await getJson<any>('https://api.tcgdex.net/v2/en/sets/'+encodeURIComponent(setId));
-    const cards=Array.isArray(set.cards)?set.cards:[];
+  const key='catalog:pokemon:set:v4:'+setId;
+  return cacheNonEmpty(key,async()=>{
+    let set:any={};
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        set=await getJson<any>('https://api.tcgdex.net/v2/en/sets/'+encodeURIComponent(setId));
+        if(Array.isArray(set.cards)&&set.cards.length>0)break;
+      }catch{}
+      if(attempt<2)await new Promise(r=>setTimeout(r,250*(attempt+1)));
+    }
+    let cards=Array.isArray(set.cards)?set.cards:[];
+    if(cards.length===0){
+      const fallback=await getJson<any[]>(
+        'https://api.tcgdex.net/v2/en/cards?set='+encodeURIComponent(setId)+'&pagination:page=1&pagination:itemsPerPage=250'
+      ).catch(()=>[]);
+      cards=Array.isArray(fallback)?fallback.filter((x:any)=>String(x.id||'').startsWith(setId+'-')):[];
+    }
     return cards.map((brief:any)=>{
       const localId=numberOf(brief.localId);
-      const baseImage=typeof brief.image==='string'&&brief.image.length>0?brief.image:pokemonImage(setId,localId,'low').replace('/low.webp','');
+      const source=typeof brief.image==='string'&&brief.image.length>0?brief.image.replace(/\/+$/,''):'';
+      const legacy=legacyPokemonImage(setId,localId);
+      const image=legacy||(source?source+'/low.webp':pokemonImage(setId,localId,'low'));
       return {
         id:String(brief.id||setId+'-'+localId),
         printingId:String(brief.id||setId+'-'+localId),
         game:'pokemon' as const,name:brief.name||'Unknown',setId,setName:set.name,
-        number:localId,image:baseImage?baseImage+'/low.webp':pokemonImage(setId,localId,'low')
+        number:localId,image
       };
-    }).sort((a:any,b:any)=>String(a.number).localeCompare(String(b.number),undefined,{numeric:true,sensitivity:'base'}));
+    }).filter((c:any)=>c.name!=='Unknown'||c.id).sort((a:any,b:any)=>String(a.number).localeCompare(String(b.number),undefined,{numeric:true,sensitivity:'base'}));
   });
 }
 
 export async function getYugiohSetCards(setName:string):Promise<CatalogCard[]>{
-  const key='catalog:yugioh:set:v2:'+setName;
-  return cache(key,async()=>{
+  const key='catalog:yugioh:set:v3:'+setName;
+  return cacheNonEmpty(key,async()=>{
     const out:CatalogCard[]=[];let offset=0;
     while(true){
       const data=await getJson<any>('https://db.ygoprodeck.com/api/v7/cardinfo.php?cardset='+encodeURIComponent(setName)+'&num=100&offset='+offset);
