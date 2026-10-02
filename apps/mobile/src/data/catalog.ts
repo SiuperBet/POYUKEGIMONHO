@@ -211,26 +211,46 @@ export async function getYugiohSetCards(setName:string):Promise<CatalogCard[]>{
 export async function getPokemonCardsForPokemon(pokemonName:string):Promise<CatalogCard[]>{
   const normalized=String(pokemonName||'').trim();
   if(!normalized)return [];
-  const key='catalog:pokemon:pokedex-cards:v2:'+encodeURIComponent(normalized.toLowerCase());
+  const key='catalog:pokemon:pokedex-cards:v3:'+encodeURIComponent(normalized.toLowerCase());
   return cacheNonEmpty(key,async()=>{
     const languageNames=new Map<PokemonLanguage,string>([['en',normalized]]);
     try{
       const species=await getJson<any>('https://pokeapi.co/api/v2/pokemon-species/'+encodeURIComponent(normalized.toLowerCase()));
+      const codeMap:Record<string,PokemonLanguage>={
+        en:'en',fr:'fr',es:'es',de:'de',it:'it',nl:'nl',pl:'pl',ru:'ru',
+        ja:'ja',ko:'ko','zh-Hans':'zh-cn','zh-Hant':'zh-tw',
+        'pt-BR':'pt-br',pt:'pt','id':'id',th:'th'
+      };
       for(const entry of (species.names||[])){
         const code=String(entry.language?.name||'');
         const value=String(entry.name||'').trim();
-        if(!value)continue;
-        const lang=code==='ja'?'ja':code==='ko'?'ko':code==='zh-Hans'?'zh-cn':code==='zh-Hant'?'zh-tw':code==='fr'?'fr':code==='de'?'de':code==='es'?'es':code==='it'?'it':code==='pt-BR'?'pt-br':undefined;
-        if(lang)languageNames.set(lang,value);
+        const lang=codeMap[code];
+        if(lang&&value)languageNames.set(lang,value);
       }
     }catch{}
     const languages=[...languageNames.entries()];
     const responses=await mapWithConcurrency(languages,4,async([language,name])=>{
-      const rows=await getJson<any[]>('https://api.tcgdex.net/v2/'+language+'/cards?name='+encodeURIComponent(name)+'&pagination:page=1&pagination:itemsPerPage=250').catch(()=>[]);
-      return {language,rows};
+      const all:any[]=[];
+      for(let page=1;page<=10;page++){
+        const rows=await getJson<any[]>(
+          'https://api.tcgdex.net/v2/'+language+'/cards?name='+encodeURIComponent(name)+
+          '&pagination:page='+page+'&pagination:itemsPerPage=250'
+        ).catch(()=>[] as any[]);
+        if(!rows.length)break;
+        all.push(...rows);
+        if(rows.length<250)break;
+      }
+      return {language,rows:all};
     });
     const out:CatalogCard[]=[];
     const seen=new Set<string>();
+    const variantLabel=(card:any)=>{
+      const v=card?.variants;
+      if(!v||typeof v!=='object')return undefined;
+      const labels=[['normal','Standard'],['holo','Holo'],['reverse','Reverse Holo'],['firstEdition','1st Edition'],['wPromo','Promo']] as const;
+      const active=labels.filter(([key])=>Boolean(v[key])).map(([,label])=>label);
+      return active.length?active.join(' · '):undefined;
+    };
     for(const {language,rows} of responses){
       for(const card of rows){
         const rawId=String(card?.id||'');
@@ -243,7 +263,10 @@ export async function getPokemonCardsForPokemon(pokemonName:string):Promise<Cata
         const setId=parts.length>1?parts.slice(0,-1).join('-'):undefined;
         out.push({
           id,sourceId:rawId,printingId:id,language,game:'pokemon',
-          name:String(card.name||normalized),setId,number:numberOf(card.localId),image
+          name:String(card.name||normalized),setId,setName:card.set?.name||undefined,
+          number:numberOf(card.localId),rarity:card.rarity||undefined,
+          artist:card.artist||undefined,image,
+          variantId:variantLabel(card),variantLabel:variantLabel(card)
         });
       }
     }

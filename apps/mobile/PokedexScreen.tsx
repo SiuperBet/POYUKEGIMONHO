@@ -105,8 +105,9 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
       {cardsLoading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico tutte le carte di {pretty(selected.name)}…</Text></View>:cardsError?<Text style={styles.empty}>Impossibile caricare le carte adesso.</Text>:cards.length===0?<Text style={styles.empty}>Nessuna carta trovata per questo Pokémon.</Text>:<FlatList data={cards} keyExtractor={c=>c.id} numColumns={3} contentContainerStyle={styles.grid} columnWrapperStyle={styles.row} renderItem={({item})=><TouchableOpacity style={styles.card} activeOpacity={0.82} onPress={()=>onOpenCard(item)}>
         {item.image?<Image source={{uri:item.image}} style={styles.cardImage} resizeMode="contain"/>:<View style={styles.cardImage}/>}
         <Text style={styles.cardName} numberOfLines={2}>{item.name}</Text>
-        <Text style={styles.cardMeta}>{item.number||'—'}</Text>
-        <Text style={styles.cardSet} numberOfLines={1}>{item.sourceId?.split('-')[0]||item.setId||'Set'}</Text>
+        <Text style={styles.cardMeta}>{item.number||'—'}{item.rarity?' · '+item.rarity:''}</Text>
+        <Text style={styles.cardSet} numberOfLines={1}>{item.setName||item.sourceId?.split('-')[0]||item.setId||'Set'}</Text>
+        <Text style={styles.cardSet} numberOfLines={1}>{item.language||'en'}{item.variantLabel?' · '+item.variantLabel:''}</Text>
       </TouchableOpacity>}/>}
     </View>;
   }
