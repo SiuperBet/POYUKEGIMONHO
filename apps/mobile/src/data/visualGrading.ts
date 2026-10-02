@@ -65,7 +65,7 @@ export async function analyzeCardCondition(frontUri:string,backUri?:string):Prom
     {type:'puntini_bianchi',score:front.whitening+(back?.whitening||0)*.9,severity:'low',confidence:back?.score?0.65:0.45},
     {type:'sporco',score:front.dirt+(back?.dirt||0)*.8,severity:'low',confidence:back?.score?0.55:0.38},
     {type:'imperfezioni',score:front.imperfections+(back?.imperfections||0)*.7,severity:'low',confidence:back?.score?0.6:0.4}
-  ].map(d=>({...d,severity:severity(d.score)}));
+  ].map(d=>({...d,severity:severity(d.score)} as VisualDefect));
   const significant=defects.filter(d=>d.score>=38).map(d=>d.type);
   const notes:string[]=[];
   if(!back)notes.push('Valutazione preliminare: il retro non è stato acquisito.');
