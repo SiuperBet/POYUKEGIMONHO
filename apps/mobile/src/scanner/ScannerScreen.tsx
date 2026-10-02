@@ -6,7 +6,7 @@ import {recognizeCardImage,RecognitionResult} from '../data/recognition';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
-type Props={onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void};
+type Props={onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void};
 
 export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onConditionSelected}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
@@ -69,7 +69,7 @@ export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onCond
   },[]);
 
   const chooseCondition=async(condition:Condition)=>{setSelectedCondition(condition);if(gradedId)await onConditionSelected?.(gradedId,condition);setCollectionSaved(false)};
-  const saveCollection=async()=>{if(!recognition?.card||!onSaveCollection)return;await onSaveCollection(recognition.card,selectedCondition,lastPhoto||undefined);if(gradedId)await onConditionSelected?.(gradedId,selectedCondition);setCollectionSaved(true);setMessage('Carta salvata nella collezione con la condizione selezionata.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)};
+  const saveCollection=async()=>{if(!recognition?.card||!onSaveCollection)return;await onSaveCollection(recognition.card,selectedCondition,lastPhoto||undefined,backPhoto||undefined);if(gradedId)await onConditionSelected?.(gradedId,selectedCondition);setCollectionSaved(true);setMessage('Carta salvata nella collezione con la condizione selezionata.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)};
   const retry=()=>{setLastPhoto(null);setBackPhoto(null);setRecognition(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
   const rescan=()=>{setLastPhoto(null);setBackPhoto(null);setRecognition(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);void smartScan();};
 
