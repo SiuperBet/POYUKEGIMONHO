@@ -20,7 +20,7 @@ const GRADED='poyukegimonho:mobile:graded:v1';
 const persistImage=async(uri?:string)=>{if(!uri||!uri.startsWith('file://'))return uri;try{const dir=(FileSystem.documentDirectory||'')+'cardgrade-images/';await FileSystem.makeDirectoryAsync(dir,{intermediates:true}).catch(()=>{});const ext=(uri.match(/\.(png|jpe?g|webp)$/i)?.[1]||'jpg').toLowerCase();const target=dir+Date.now()+'-'+Math.random().toString(36).slice(2)+'.'+ext;await FileSystem.copyAsync({from:uri,to:target});return target}catch{return uri}};
 
 async function read<T>(key:string,fallback:T):Promise<T>{const raw=await AsyncStorage.getItem(key);if(!raw)return fallback;try{return JSON.parse(raw) as T}catch{return fallback}}
-export async function loadCollection(){const current=await read<CollectionItem[]>(COLLECTION,[]);if(current.length)return current;const legacy=await read<CollectionItem[]>(LEGACY_COLLECTION,[]);if(legacy.length)await AsyncStorage.setItem(COLLECTION,JSON.stringify(legacy));return legacy}
+export async function loadCollection(){const current=await read<CollectionItem[]>(COLLECTION,[]);if(current.length)return current;const legacy=await read<CollectionItem[]>(LEGACY_COLLECTION,[]);if(!legacy.length)return [];const migrated=await Promise.all(legacy.map(async item=>({...item,image:await persistImage(item.image),backImage:await persistImage(item.backImage)})));await AsyncStorage.setItem(COLLECTION,JSON.stringify(migrated));return migrated}
 export const loadGraded=()=>read<GradedItem[]>(GRADED,[]);
 export async function saveCollection(items:CollectionItem[]){await AsyncStorage.setItem(COLLECTION,JSON.stringify(items))}
 export async function saveGraded(items:GradedItem[]){await AsyncStorage.setItem(GRADED,JSON.stringify(items))}

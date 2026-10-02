@@ -89,7 +89,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
       <View style={styles.nativeBadge}><Text style={styles.nativeBadgeText}>NATIVO</Text></View>
     </View>
 
-    {editorOpen&&lastPhoto&&<CardEdgeEditor uri={lastPhoto} onCancel={()=>{setEditorOpen(false);setMessage('Rifinitura annullata • immagine nativa mantenuta.');}} onConfirm={async uri=>{setEditorOpen(false);await processCapturedPhoto(uri);}}/>}
+    {editorOpen&&lastPhoto&&<CardEdgeEditor uri={lastPhoto} onCancel={()=>{setEditorOpen(false);void processCapturedPhoto(lastPhoto);}} onConfirm={async uri=>{setEditorOpen(false);await processCapturedPhoto(uri);}}/>}
     <View style={styles.stage}>
       {lastPhoto?
         <Image source={{uri:lastPhoto}} style={styles.preview} resizeMode="contain"/>:
