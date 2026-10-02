@@ -16,11 +16,11 @@ export const loadCollection=()=>read<CollectionItem[]>(COLLECTION,[]);
 export const loadGraded=()=>read<GradedItem[]>(GRADED,[]);
 export async function saveCollection(items:CollectionItem[]){await AsyncStorage.setItem(COLLECTION,JSON.stringify(items))}
 export async function saveGraded(items:GradedItem[]){await AsyncStorage.setItem(GRADED,JSON.stringify(items))}
-export async function addToCollection(card:CatalogCard,condition:Condition='NM',quantity=1){
+export async function addToCollection(card:CatalogCard,condition:Condition='NM',quantity=1,scanImage?:string){
   const items=await loadCollection();
   const index=items.findIndex(x=>x.id===card.id&&x.condition===condition);
-  if(index>=0)items[index]={...items[index],quantity:items[index].quantity+quantity};
-  else items.unshift({...card,quantity,condition,addedAt:new Date().toISOString()});
+  if(index>=0)items[index]={...items[index],quantity:items[index].quantity+quantity,image:scanImage||items[index].image};
+  else items.unshift({...card,quantity,condition,addedAt:new Date().toISOString(),image:scanImage||card.image});
   await saveCollection(items); return items;
 }
 export async function addGraded(item:GradedItem){const items=await loadGraded();items.unshift(item);await saveGraded(items);return items}
