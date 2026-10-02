@@ -1,8 +1,9 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {ActivityIndicator,FlatList,Image,SectionList,StyleSheet,Text,TextInput,TouchableOpacity,View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {CatalogCard,getPokemonCardsForPokemon} from './data/catalog';
-import {CollectionItem} from './data/store';
+import {getPokemonCardsForPokemon} from './data/catalog';
+import type {CatalogCard} from './data/catalog';
+import type {CollectionItem} from './data/store';
 
 type DexPokemon={id:number;name:string;sprite:string};
 type DexRow={items:DexPokemon[]};
@@ -26,7 +27,7 @@ const sprite=(id:number)=>'https://raw.githubusercontent.com/PokeAPI/sprites/mas
 const pretty=(name:string)=>name.split('-').map(x=>x?x[0].toUpperCase()+x.slice(1):x).join(' ');
 const normalize=(s:string)=>s.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim();
 
-export function PokedexScreen({collection,onOpenCard,onScan}:{collection:CollectionItem[];onOpenCard:(card:CatalogCard)=>void;onScan:()=>void}){
+export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:CollectionItem[];onOpenCard:(card:CatalogCard)=>void;onScan:()=>void;onBack:()=>void}){
   const [pokemon,setPokemon]=useState<DexPokemon[]>([]);
   const [loading,setLoading]=useState(true);
   const [query,setQuery]=useState('');
@@ -119,7 +120,7 @@ export function PokedexScreen({collection,onOpenCard,onScan}:{collection:Collect
 
   return <View style={styles.root}>
     <View style={styles.header}>
-      <View style={styles.headerTop}><TouchableOpacity style={styles.back} onPress={onScan}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text style={styles.title}>Pokédex</Text></View>
+      <View style={styles.headerTop}><TouchableOpacity style={styles.back} onPress={onBack}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text style={styles.title}>Pokédex</Text></View>
       <TextInput value={query} onChangeText={setQuery} placeholder="Cerca un Pokémon" placeholderTextColor="#777f91" style={styles.search}/>
       <View style={styles.modeRow}><TouchableOpacity onPress={()=>setMode('regions')} style={mode==='regions'?styles.modeOn:styles.modeOff}><Text style={mode==='regions'?styles.modeOnText:styles.modeText}>Regioni</Text></TouchableOpacity><TouchableOpacity onPress={()=>setMode('national')} style={mode==='national'?styles.modeOn:styles.modeOff}><Text style={mode==='national'?styles.modeOnText:styles.modeText}>Nazionale</Text></TouchableOpacity></View>
       <Text style={styles.caption}>{mode==='national'?NATIONAL+' Pokémon in ordine nazionale':'10 raccolte regionali · ogni Pokémon apre tutte le sue carte TCG'}</Text>
