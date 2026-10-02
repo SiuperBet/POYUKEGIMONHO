@@ -184,6 +184,50 @@ export async function hydrateCardDates(game:Game,cards:CatalogCard[]):Promise<Ca
 
 const SEARCH_LANGUAGES:PokemonLanguage[]=['en','it','ja','zh-cn','zh-tw','fr','de','es','pt-br','ko'];
 
+async function expandPokemonSearchAcrossLanguages(cards:CatalogCard[]):Promise<CatalogCard[]>{
+  if(!cards.length)return cards;
+  const canonical=cards.slice(0,24);
+  const requests:{base:CatalogCard;language:PokemonLanguage;promise:Promise<any>}[]=[];
+  for(const base of canonical){
+    const rawId=String(base.sourceId||base.id).replace(/^(?:[a-z-]+)::/,'');
+    for(const language of POKEMON_LANGUAGES){
+      if(language===base.language)continue;
+      requests.push({
+        base,language,
+        promise:getJson<any>('https://api.tcgdex.net/v2/'+language+'/cards/'+encodeURIComponent(rawId)).catch(()=>null)
+      });
+    }
+  }
+  const results=await mapWithConcurrency(requests,8,async(r)=>({r,data:await r.promise}));
+  const out=[...cards];
+  const seen=new Set(out.map(c=>c.id));
+  for(const item of results){
+    const c=item?.data;if(!c)continue;
+    const lang=item.r.language,rawId=String(c.id||item.r.base.sourceId||'');
+    if(!rawId)continue;
+    const image=typeof c.image==='string'&&c.image.length>0?c.image+'/high.webp':undefined;
+    const localized:CatalogCard={
+      id:pokemonCardId(lang,rawId),
+      sourceId:rawId,
+      printingId:pokemonCardId(lang,rawId),
+      language:lang,
+      game:'pokemon',
+      name:String(c.name||item.r.base.name),
+      setId:c.set?.id||item.r.base.setId,
+      setName:c.set?.name||item.r.base.setName,
+      number:numberOf(c.localId)||item.r.base.number,
+      rarity:c.rarity||item.r.base.rarity,
+      image,
+      priceEUR:priceFromPokemon(c),
+      trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,
+      trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined,
+      updatedAt:c.updated
+    };
+    if(!seen.has(localized.id)){seen.add(localized.id);out.push(localized);}
+  }
+  return out.slice(0,160);
+}
+
 export async function searchCards(game:Game,query:string,language?:PokemonLanguage):Promise<CatalogCard[]>{
   const q=query.trim();if(!q)return [];
   const tokens=[...new Set(q.split(/\s+/).map(x=>x.trim()).filter(x=>x.length>=2))];
@@ -209,10 +253,17 @@ export async function searchCards(game:Game,query:string,language?:PokemonLangua
       return {card:{id:pokemonCardId(lang,rawId),sourceId:rawId,printingId:pokemonCardId(lang,rawId),language:lang,game:'pokemon' as const,name:c.name,setId:c.set?.id,setName:c.set?.name,number,rarity:c.rarity,image,priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined,updatedAt:c.updated},hits:tokenHits,exact:hay.includes(normalized)};
     });
     const result=mapped.sort((a,b)=>b.exact===a.exact?(b.hits-a.hits):b.exact?1:-1).slice(0,100).map(x=>x.card);
+    if(!language&&result.length){
+      // Una ricerca con tastiera latina deve comunque mostrare le stampe
+      // giapponesi/cinesi/coreane ecc. della stessa carta: l'utente non deve
+      // conoscere o digitare il nome localizzato.
+      return expandPokemonSearchAcrossLanguages(result);
+    }
     if(!language&&result.length===0){
       const fallbackLangs=POKEMON_LANGUAGES.filter(x=>!SEARCH_LANGUAGES.includes(x));
       const fallback=await Promise.all(fallbackLangs.map(lang=>searchCards('pokemon',q,lang).catch(()=>[])));
-      return [...new Map(fallback.flat().map(c=>[c.id,c])).values()].slice(0,100);
+      const merged=[...new Map(fallback.flat().map(c=>[c.id,c])).values()];
+      return expandPokemonSearchAcrossLanguages(merged.slice(0,100));
     }
     return result;
   }
