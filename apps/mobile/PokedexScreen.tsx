@@ -1,9 +1,9 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {ActivityIndicator,FlatList,Image,SectionList,StyleSheet,Text,TextInput,TouchableOpacity,View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {getPokemonCardsForPokemon} from './data/catalog';
+import {getPokemonCardsForPokemon} from './src/data/catalog';
 import type {CatalogCard} from './data/catalog';
-import type {CollectionItem} from './data/store';
+import type {CollectionItem} from './src/data/store';
 
 type DexPokemon={id:number;name:string;sprite:string};
 type DexRow={items:DexPokemon[]};
@@ -114,7 +114,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
   const renderSectionHeader=({section}:{section:DexSection})=>{
     const open=mode==='national'||expandedRegion===section.key;
     return <TouchableOpacity activeOpacity={0.88} onPress={()=>mode==='regions'&&setExpandedRegion(open?null:section.key)} style={styles.sectionHeader}>
-      <View style={styles.sectionCopy}><View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>{section.title}</Text>{mode==='regions'&&<Text style={styles.sectionArrow}>{open?'⌃':'⌄'}</Text>}</View><Text style={styles.sectionCount}>{section.owned}/{section.count}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:(Math.min(1,section.owned/Math.max(1,section.count))*100)+'%'}]}/></View></View>
+      <View style={styles.sectionCopy}><View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>{section.title}</Text>{mode==='regions'&&<Text style={styles.sectionArrow}>{open?'⌃':'⌄'}</Text>}</View><Text style={styles.sectionCount}>{section.owned}/{section.count}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:((Math.min(1,section.owned/Math.max(1,section.count))*100)+'%') as `${number}%`}]}/></View></View>
       <View style={styles.starters}>{section.starters.map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View>
     </TouchableOpacity>;
   };
@@ -130,7 +130,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
       <View style={styles.modeRow}><TouchableOpacity onPress={()=>setMode('regions')} style={mode==='regions'?styles.modeOn:styles.modeOff}><Text style={mode==='regions'?styles.modeOnText:styles.modeText}>Regioni</Text></TouchableOpacity><TouchableOpacity onPress={()=>setMode('national')} style={mode==='national'?styles.modeOn:styles.modeOff}><Text style={mode==='national'?styles.modeOnText:styles.modeText}>Nazionale</Text></TouchableOpacity></View>
       <Text style={styles.caption}>{mode==='national'?NATIONAL+' Pokémon in ordine nazionale':'10 raccolte regionali · ogni Pokémon apre tutte le sue carte TCG'}</Text>
     </View>
-    {loading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico il Pokédex…</Text></View>:<SectionList sections={sections as any} keyExtractor={(item:DexRow,index:number)=>String(item.items[0]?.id||index)} renderSectionHeader={renderSectionHeader as any} renderItem={renderItem as any} contentContainerStyle={styles.list} stickySectionHeadersEnabled={false} ListHeaderComponent={mode==='regions'?<TouchableOpacity activeOpacity={0.88} onPress={()=>setMode('national')} style={styles.nationalHero}><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>National</Text><Text style={styles.sectionCount}>{visible.filter(p=>ownedSet.has(p.id)).length}/{NATIONAL}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:(Math.min(1,visible.filter(p=>ownedSet.has(p.id)).length/NATIONAL)*100)+'%'}]}/></View></View><View style={styles.starters}>{[133,25,448].map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View></TouchableOpacity>:null} ListEmptyComponent={<Text style={styles.empty}>Nessun Pokémon trovato.</Text>}/>}
+    {loading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico il Pokédex…</Text></View>:<SectionList sections={sections as any} keyExtractor={(item:DexRow,index:number)=>String(item.items[0]?.id||index)} renderSectionHeader={renderSectionHeader as any} renderItem={renderItem as any} contentContainerStyle={styles.list} stickySectionHeadersEnabled={false} ListHeaderComponent={mode==='regions'?<TouchableOpacity activeOpacity={0.88} onPress={()=>setMode('national')} style={styles.nationalHero}><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>National</Text><Text style={styles.sectionCount}>{visible.filter(p=>ownedSet.has(p.id)).length}/{NATIONAL}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:((Math.min(1,visible.filter(p=>ownedSet.has(p.id)).length/NATIONAL)*100)+'%') as `${number}%`}]}/></View></View><View style={styles.starters}>{[133,25,448].map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View></TouchableOpacity>:null} ListEmptyComponent={<Text style={styles.empty}>Nessun Pokémon trovato.</Text>}/>}
   </View>;
 }
 
@@ -138,6 +138,7 @@ const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#050608'},
   flex:{flex:1},
   header:{padding:18,paddingBottom:8},
+  topBar:{padding:18,paddingBottom:8,flexDirection:'row',alignItems:'center',gap:10},
   headerTop:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:16},
   back:{width:42,height:42,borderRadius:21,alignItems:'center',justifyContent:'center'},
   backText:{color:'#f5f7fa',fontSize:40,fontWeight:'300',lineHeight:42},
