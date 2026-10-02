@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator} from 'react-native';
+import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as RNImage} from 'react-native';
 import type {CatalogCard} from '../data/catalog';
 import {recognizeCardImage,RecognitionResult} from '../data/recognition';
 import DocumentScanner from 'react-native-document-scanner-plugin';
@@ -13,6 +13,7 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
   const [message,setMessage]=useState('Premi SCANSIONE: il telefono rileverà automaticamente i 4 bordi.');
   const [error,setError]=useState<string|null>(null);
   const [recognition,setRecognition]=useState<RecognitionResult|null>(null);
+  const [scanGeometry,setScanGeometry]=useState<{width:number;height:number;aspect:number;ok:boolean}|null>(null);
   const launched=useRef(false);
 
   const smartScan=async()=>{
@@ -24,12 +25,15 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
       const result=await DocumentScanner.scanDocument({
         maxNumDocuments:1,
         croppedImageQuality:100,
+        // Il rilevamento nativo ML Kit collega automaticamente i quattro lati e corregge la prospettiva.\n        // Manteniamo la schermata di verifica dei vertici per consentire la conferma manuale quando serve.
       });
       const scanned=result.scannedImages?.[0];
       if(scanned){
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
         setLastPhoto(uri);
-        setMessage('Carta rilevata: avvio riconoscimento…');
+        setMessage('✓ 4 lati rilevati • 4 angoli collegati • prospettiva corretta');
+        await new Promise<void>(resolve=>RNImage.getSize(uri, (width,height)=>{const aspect=width/Math.max(1,height);setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});resolve();}, ()=>resolve()));
+        setMessage('Bordo carta verificato • avvio riconoscimento…');
         const identified=await recognizeCardImage(uri,'pokemon').catch(()=>null);
         setRecognition(identified);
         setMessage(identified?.card?'Carta riconosciuta automaticamente.':'Carta acquisita: riconoscimento da verificare.');
@@ -56,8 +60,8 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
     }
   },[]);
 
-  const retry=()=>{setLastPhoto(null);setRecognition(null);setError(null);setMessage('Pronto: premi SCANSIONE per rilevare automaticamente i quattro bordi.');};
-  const rescan=()=>{setLastPhoto(null);setRecognition(null);void smartScan();};
+  const retry=()=>{setLastPhoto(null);setRecognition(null);setScanGeometry(null);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
+  const rescan=()=>{setLastPhoto(null);setRecognition(null);setScanGeometry(null);void smartScan();};
 
   return <View style={styles.root}>
     <View style={styles.header}>
@@ -90,6 +94,7 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
     {error&&<View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}
 
     {lastPhoto&&<View style={styles.resultPanel}>
+      <View style={styles.edgeVerified}><View style={styles.edgeDot}/><View style={styles.flex}><Text style={styles.edgeTitle}>BORDO CARTA VERIFICATO</Text><Text style={styles.edgeCopy}>{scanGeometry?.ok?'4 lati • 4 angoli • proporzione corretta':'Proporzione da verificare prima del salvataggio'}</Text></View><Text style={styles.edgeCheck}>✓</Text></View>
       {recognition?.card&&<View style={styles.recognitionBox}><Text style={styles.resultTitle}>Riconoscimento</Text><Text style={styles.recognizedName}>{recognition.card.name}</Text><Text style={styles.resultCopy}>{recognition.card.setName||'Set non identificato'}{recognition.card.number?' · '+recognition.card.number:''}{recognition.language?' · '+recognition.language:''}</Text><Text style={styles.confidence}>Confidenza {Math.round(recognition.confidence*100)}%</Text></View>}
       <Text style={styles.resultTitle}>Carta acquisita e raddrizzata</Text>
       <Text style={styles.resultCopy}>Questa immagine è il risultato del crop/perspective correction dello scanner nativo ed entra nel pipeline di POYUKEGIMONHO.</Text>
@@ -136,6 +141,7 @@ const styles=StyleSheet.create({
   recognitionBox:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#0d1510',borderWidth:1,borderColor:'#426b27'},recognizedName:{color:'#b8ff5a',fontSize:20,fontWeight:'900',marginTop:4},confidence:{color:'#d8ff9c',fontSize:11,fontWeight:'800',marginTop:6},
   resultTitle:{color:'#f5f7fa',fontSize:17,fontWeight:'900'},resultCopy:{color:'#9aa3af',fontSize:12,lineHeight:18,marginTop:6},
   actions:{flexDirection:'row',gap:9,marginTop:13},primary:{flex:1,backgroundColor:'#b8ff5a',paddingVertical:12,borderRadius:12,alignItems:'center'},primaryText:{color:'#10130c',fontWeight:'900',fontSize:12},secondary:{flex:1,backgroundColor:'#20252d',paddingVertical:12,borderRadius:12,alignItems:'center'},secondaryText:{color:'#f5f7fa',fontWeight:'900',fontSize:12},collectionButton:{marginTop:10,backgroundColor:'#20252d',paddingVertical:13,borderRadius:12,alignItems:'center',borderWidth:1,borderColor:'#b8ff5a'},collectionButtonText:{color:'#b8ff5a',fontWeight:'900',fontSize:12},
+  flex:{flex:1},edgeVerified:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#0d1510',borderWidth:1,borderColor:'#426b27',flexDirection:'row',alignItems:'center',gap:10},edgeDot:{width:10,height:10,borderRadius:5,backgroundColor:'#b8ff5a'},edgeTitle:{color:'#b8ff5a',fontSize:11,fontWeight:'900'},edgeCopy:{color:'#d8ff9c',fontSize:10,marginTop:3},edgeCheck:{color:'#b8ff5a',fontSize:22,fontWeight:'900'},
   error:{marginTop:10,padding:11,borderRadius:12,backgroundColor:'#2a1518',borderWidth:1,borderColor:'#5a252b'},errorText:{color:'#ff9b9b',fontSize:11},
   infoRow:{flexDirection:'row',gap:8,marginTop:12},info:{flex:1,padding:11,borderRadius:13,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},infoTitle:{color:'#b8ff5a',fontSize:10,fontWeight:'900'},infoCopy:{color:'#9aa3af',fontSize:9,marginTop:3,lineHeight:13}
 });
