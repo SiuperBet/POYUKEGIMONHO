@@ -7,7 +7,7 @@ export type CatalogCard={
 };
 export type CatalogSet={id:string;game:Game;name:string;code?:string;cardCount?:number;releaseDate?:string;logo?:string};
 
-const cache<T>(key:string,loader:()=>Promise<T>):Promise<T>{
+async function cache<T>(key:string,loader:()=>Promise<T>):Promise<T>{
   return AsyncStorage.getItem(key).then(async raw=>{
     if(raw){try{return JSON.parse(raw) as T}catch{}}
     const value=await loader();
