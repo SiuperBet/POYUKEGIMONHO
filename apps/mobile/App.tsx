@@ -250,7 +250,8 @@ export default function App(){
     const owned=ownedQty(c.id)>0;
     const cardStyle=collectionCardSize==='small'?styles.binderCardSmall:collectionCardSize==='medium'?styles.binderCardMedium:styles.binderCard;
     const imageStyle=collectionCardSize==='small'?styles.binderImageSmall:collectionCardSize==='medium'?styles.binderImageMedium:styles.binderImage;
-    const ownedItem=collection.find(x=>x.id===c.id||x.id.startsWith(c.id+'::'));\n    return <TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>preferCollection&&ownedItem?openCollectionDetail(ownedItem):void openCardDetail(c)} style={[cardStyle,!owned&&styles.binderMissing]}>
+    const ownedItem=collection.find(x=>x.id===c.id||x.id.startsWith(c.id+'::'));
+    return <TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>preferCollection&&ownedItem?openCollectionDetail(ownedItem):void openCardDetail(c)} style={[cardStyle,!owned&&styles.binderMissing]}>
       {c.image?<Image source={{uri:c.image}} style={[imageStyle,!owned&&styles.binderImageMissing]} resizeMode="contain"/>:<View style={[imageStyle,!owned&&styles.binderImageMissing]}><Text style={styles.imageFallback}>{c.name.slice(0,1)}</Text></View>}
       <View style={styles.cardPriceBadge}><Text style={styles.cardPriceText}>{money(c.priceEUR)}</Text></View>
       <Text style={[styles.binderName,!owned&&styles.binderMissingText]} numberOfLines={1}>{c.name}</Text>
