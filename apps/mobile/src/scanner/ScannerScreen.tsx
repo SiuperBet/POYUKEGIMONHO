@@ -3,7 +3,7 @@ import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as R
 import type {CatalogCard} from '../data/catalog';
 import {CONDITIONS,Condition,estimateCardValueEUR} from '../data/store';
 import {recognizeCardImage,RecognitionResult} from '../data/recognition';
-import {analyzeCardCondition,VisualAnalysis} from '../data/visualGrading';
+import type {VisualAnalysis} from '../data/visualGrading';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
@@ -21,7 +21,7 @@ export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onCond
   const [scanGeometry,setScanGeometry]=useState<{width:number;height:number;aspect:number;ok:boolean}|null>(null);
   const launched=useRef(false);
 
-  const scanBack=async()=>{if(!gradedId||scanningBack)return;setScanningBack(true);setError(null);setMessage('Inquadra il retro della carta…');try{const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned){setMessage('Retro non acquisito. Il retro resta opzionale.');return}const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;setBackPhoto(uri);await onBackCaptured?.(gradedId,uri);setMessage('Analisi fronte + retro in corso…');const analysis=await analyzeCardCondition(lastPhoto||uri,uri).catch(()=>null);if(analysis){setVisualAnalysis(analysis);if(!conditionTouched){setSelectedCondition(analysis.condition);await onConditionSelected?.(gradedId,analysis.condition)}await onVisualAnalysis?.(gradedId,analysis)}setMessage('✓ Retro acquisito • valutazione fronte + retro aggiornata');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back/i.test(String(errorValue??''));setMessage(cancelled?'Acquisizione retro annullata.':'Impossibile acquisire il retro. Puoi continuare senza retro.');}finally{setScanningBack(false)}};
+  const scanBack=async()=>{if(!gradedId||scanningBack)return;setScanningBack(true);setError(null);setMessage('Inquadra il retro della carta…');try{const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned){setMessage('Retro non acquisito. Il retro resta opzionale.');return}const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;setBackPhoto(uri);await onBackCaptured?.(gradedId,uri);setMessage('Analisi fronte + retro in corso…');const {analyzeCardCondition}=await import('../data/visualGrading'); const analysis=await analyzeCardCondition(lastPhoto||uri,uri).catch(()=>null);if(analysis){setVisualAnalysis(analysis);if(!conditionTouched){setSelectedCondition(analysis.condition);await onConditionSelected?.(gradedId,analysis.condition)}await onVisualAnalysis?.(gradedId,analysis)}setMessage('✓ Retro acquisito • valutazione fronte + retro aggiornata');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back/i.test(String(errorValue??''));setMessage(cancelled?'Acquisizione retro annullata.':'Impossibile acquisire il retro. Puoi continuare senza retro.');}finally{setScanningBack(false)}};
 
   const smartScan=async()=>{
     if(scannerOpen)return;
