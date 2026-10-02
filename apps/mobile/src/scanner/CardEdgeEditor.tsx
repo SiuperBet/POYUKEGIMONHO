@@ -3,62 +3,85 @@ import {PanResponder,StyleSheet,Text,TouchableOpacity,View,Image,LayoutChangeEve
 import * as ImageManipulator from 'expo-image-manipulator';
 import {SaveFormat} from 'expo-image-manipulator';
 
+type Point={x:number;y:number};
+type Quad={tl:Point;tr:Point;br:Point;bl:Point};
 type Props={uri:string;onCancel:()=>void;onConfirm:(uri:string)=>void|Promise<void>};
-type Crop={left:number;top:number;right:number;bottom:number};
+
+const clamp=(v:number,min=0.01,max=0.99)=>Math.max(min,Math.min(max,v));
+const snap=(v:number)=>Math.round(v*200)/200;
 
 export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
-  const [crop,setCrop]=useState<Crop>({left:.012,top:.012,right:.988,bottom:.988});
+  const [quad,setQuad]=useState<Quad>({tl:{x:.06,y:.035},tr:{x:.94,y:.035},br:{x:.94,y:.965},bl:{x:.06,y:.965}});
   const [box,setBox]=useState({width:1,height:1});
   const [working,setWorking]=useState(false);
-  const start=useRef<Crop>(crop);
+  const start=useRef<Quad>(quad);
 
-  const updateSide=(side:'left'|'right'|'top'|'bottom',delta:number)=>{
-    setCrop(prev=>{
+  const moveCorner=(key:keyof Quad,dx:number,dy:number)=>{
+    setQuad(prev=>{
       const next={...prev};
-      const min=.495;
-      if(side==='left')next.left=Math.min(next.right-.02,Math.max(0,Math.min(min,start.current.left+delta)));
-      if(side==='right')next.right=Math.max(next.left+.02,Math.min(1,Math.max(1-min,start.current.right+delta)));
-      if(side==='top')next.top=Math.min(next.bottom-.02,Math.max(0,Math.min(min,start.current.top+delta)));
-      if(side==='bottom')next.bottom=Math.max(next.top+.02,Math.min(1,Math.max(1-min,start.current.bottom+delta)));
+      next[key]={x:snap(clamp(start.current[key].x+dx,.005,.995)),y:snap(clamp(start.current[key].y+dy,.005,.995))};
+      return next;
+    });
+  };
+  const moveSide=(side:'top'|'right'|'bottom'|'left',dx:number,dy:number)=>{
+    setQuad(prev=>{
+      const next={...prev};
+      const a=side==='top'?'tl':side==='right'?'tr':side==='bottom'?'br':'bl';
+      const b=side==='top'?'tr':side==='right'?'br':side==='bottom'?'bl':'tl';
+      next[a]={x:clamp(start.current[a].x+dx),y:clamp(start.current[a].y+dy)};
+      next[b]={x:clamp(start.current[b].x+dx),y:clamp(start.current[b].y+dy)};
       return next;
     });
   };
 
-  const pan=useMemo(()=>({
-    left:PanResponder.create({onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=crop},onPanResponderMove:(_,g)=>updateSide('left',g.dx/box.width),onPanResponderRelease:()=>setCrop(c=>({...c,left:Math.round(c.left*200)/200}))}),
-    right:PanResponder.create({onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=crop},onPanResponderMove:(_,g)=>updateSide('right',g.dx/box.width),onPanResponderRelease:()=>setCrop(c=>({...c,right:Math.round(c.right*200)/200}))}),
-    top:PanResponder.create({onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=crop},onPanResponderMove:(_,g)=>updateSide('top',g.dy/box.height),onPanResponderRelease:()=>setCrop(c=>({...c,top:Math.round(c.top*200)/200}))}),
-    bottom:PanResponder.create({onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=crop},onPanResponderMove:(_,g)=>updateSide('bottom',g.dy/box.height),onPanResponderRelease:()=>setCrop(c=>({...c,bottom:Math.round(c.bottom*200)/200}))})
-  }),[crop,box.width,box.height]);
+  const cornerPan=useMemo(()=>Object.fromEntries((['tl','tr','br','bl'] as const).map(key=>[key,PanResponder.create({
+    onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=quad},
+    onPanResponderMove:(_,g)=>moveCorner(key,g.dx/box.width,g.dy/box.height),
+    onPanResponderRelease:()=>setQuad(q=>({...q,[key]:{x:snap(q[key].x),y:snap(q[key].y)}}))
+  })])),[quad,box.width,box.height]);
+
+  const sidePan=useMemo(()=>Object.fromEntries((['top','right','bottom','left'] as const).map(side=>[side,PanResponder.create({
+    onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=quad},
+    onPanResponderMove:(_,g)=>moveSide(side,g.dx/box.width,g.dy/box.height)
+  })])),[quad,box.width,box.height]);
 
   const layout=(e:LayoutChangeEvent)=>setBox({width:Math.max(1,e.nativeEvent.layout.width),height:Math.max(1,e.nativeEvent.layout.height)});
+  const pointStyle=(p:Point)=>({left:p.x*box.width-14,top:p.y*box.height-14});
+  const lineStyle=(a:Point,b:Point)=>({left:Math.min(a.x,b.x)*box.width,top:Math.min(a.y,b.y)*box.height,width:Math.max(1,Math.hypot((b.x-a.x)*box.width,(b.y-a.y)*box.height))});
+  const angle=(a:Point,b:Point)=>Math.atan2((b.y-a.y)*box.height,(b.x-a.x)*box.width)*180/Math.PI;
+
   const confirm=async()=>{
     if(working)return;
     setWorking(true);
     try{
       const size=await new Promise<{width:number;height:number}>((resolve,reject)=>Image.getSize(uri,(width,height)=>resolve({width,height}),reject));
-      const result=await ImageManipulator.manipulateAsync(uri,[{crop:{
-        originX:Math.round(size.width*crop.left),originY:Math.round(size.height*crop.top),
-        width:Math.max(1,Math.round(size.width*(crop.right-crop.left))),height:Math.max(1,Math.round(size.height*(crop.bottom-crop.top)))
-      }}],{compress:1,format:SaveFormat.JPEG});
+      const xs=[quad.tl.x,quad.tr.x,quad.br.x,quad.bl.x],ys=[quad.tl.y,quad.tr.y,quad.br.y,quad.bl.y];
+      const left=Math.max(0,Math.min(...xs)),right=Math.min(1,Math.max(...xs)),top=Math.max(0,Math.min(...ys)),bottom=Math.min(1,Math.max(...ys));
+      const result=await ImageManipulator.manipulateAsync(uri,[{crop:{originX:Math.round(size.width*left),originY:Math.round(size.height*top),width:Math.max(1,Math.round(size.width*(right-left))),height:Math.max(1,Math.round(size.height*(bottom-top)))}}],{compress:1,format:SaveFormat.JPEG});
       await onConfirm(result.uri);
     }finally{setWorking(false)}
   };
 
+  const sides=[
+    {key:'top' as const,a:quad.tl,b:quad.tr,label:'LATO SUPERIORE'},
+    {key:'right' as const,a:quad.tr,b:quad.br,label:'LATO DESTRO'},
+    {key:'bottom' as const,a:quad.br,b:quad.bl,label:'LATO INFERIORE'},
+    {key:'left' as const,a:quad.bl,b:quad.tl,label:'LATO SINISTRO'}
+  ];
+
   return <View style={styles.root}>
-    <Text style={styles.title}>Rifinitura bordi carta</Text>
-    <Text style={styles.hint}>Trascina direttamente il lato che vuoi correggere. Il lato resta dritto e si aggancia a piccoli incrementi per evitare micro-movimenti.</Text>
+    <Text style={styles.title}>Rifinitura angoli e bordi</Text>
+    <Text style={styles.hint}>Trascina i 4 angoli. Le 4 linee verdi coincidono con i bordi della carta: puoi selezionare direttamente ogni lato. Le linee restano dritte e sono sempre collegate agli angoli.</Text>
     <View style={styles.canvas} onLayout={layout}>
       <Image source={{uri}} style={styles.image} resizeMode="contain"/>
-      <View pointerEvents="none" style={[styles.crop,{left:crop.left*box.width,right:(1-crop.right)*box.width,top:crop.top*box.height,bottom:(1-crop.bottom)*box.height}]}/>
-      <View {...pan.top.panHandlers} style={[styles.sideHandle,styles.top,{left:crop.left*box.width,right:(1-crop.right)*box.width,top:crop.top*box.height}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
-      <View {...pan.bottom.panHandlers} style={[styles.sideHandle,styles.bottom,{left:crop.left*box.width,right:(1-crop.right)*box.width,bottom:(1-crop.bottom)*box.height}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
-      <View {...pan.left.panHandlers} style={[styles.sideHandle,styles.left,{top:crop.top*box.height,bottom:(1-crop.bottom)*box.height,left:crop.left*box.width}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
-      <View {...pan.right.panHandlers} style={[styles.sideHandle,styles.right,{top:crop.top*box.height,bottom:(1-crop.bottom)*box.height,right:(1-crop.right)*box.width}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
+      {sides.map(s=><View key={'line-'+s.key} pointerEvents="none" style={[styles.edgeLine,lineStyle(s.a,s.b),{transform:[{rotate:angle(s.a,s.b)+'deg'}]}]}/>)}
+      {sides.map(s=><View key={'hit-'+s.key} {...sidePan[s.key].panHandlers} style={[styles.sideHit,lineStyle(s.a,s.b),{transform:[{rotate:angle(s.a,s.b)+'deg'}]}]}><Text style={styles.sideLabel}>{s.label}</Text></View>)}
+      {(['tl','tr','br','bl'] as const).map(k=><View key={k} {...cornerPan[k].panHandlers} style={[styles.cornerHandle,pointStyle(quad[k])]}><View style={styles.cornerDot}/><Text style={styles.cornerLabel}>{k.toUpperCase()}</Text></View>)}
     </View>
+    <View style={styles.legend}><Text style={styles.legendText}>● 4 ANGOLI</Text><Text style={styles.legendText}>━ 4 BORDI SELEZIONABILI</Text></View>
     <View style={styles.row}>
       <TouchableOpacity style={styles.secondary} onPress={onCancel} disabled={working}><Text style={styles.secondaryText}>ANNULLA</Text></TouchableOpacity>
-      <TouchableOpacity style={styles.primary} onPress={()=>void confirm()} disabled={working}><Text style={styles.primaryText}>{working?'APPLICO…':'CONFERMA BORDI'}</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.primary} onPress={()=>void confirm()} disabled={working}><Text style={styles.primaryText}>{working?'APPLICO…':'CONFERMA GEOMETRIA'}</Text></TouchableOpacity>
     </View>
   </View>;
 }
@@ -67,13 +90,16 @@ const styles=StyleSheet.create({
   root:{backgroundColor:'#14171c',borderRadius:20,borderWidth:1,borderColor:'#303640',padding:14,marginTop:12},
   title:{color:'#f5f7fa',fontSize:18,fontWeight:'900'},
   hint:{color:'#9aa3af',fontSize:10,lineHeight:15,marginTop:5,marginBottom:10},
-  canvas:{height:390,borderRadius:14,overflow:'hidden',backgroundColor:'#080a0d',position:'relative'},
+  canvas:{height:430,borderRadius:14,overflow:'hidden',backgroundColor:'#080a0d',position:'relative'},
   image:{...StyleSheet.absoluteFillObject},
-  crop:{position:'absolute',borderWidth:2,borderColor:'#b8ff5a'},
-  sideHandle:{position:'absolute',backgroundColor:'rgba(184,255,90,.08)',alignItems:'center',justifyContent:'center'},
-  top:{height:34},bottom:{height:34},left:{width:34},right:{width:34},
-  handleLine:{backgroundColor:'#b8ff5a',borderRadius:4,width:'72%',height:4},
-  handleLabel:{color:'#d8ff9c',fontSize:7,fontWeight:'900',marginTop:2},
+  edgeLine:{position:'absolute',height:3,backgroundColor:'#b8ff5a',borderRadius:3,transformOrigin:'left center'},
+  sideHit:{position:'absolute',height:28,backgroundColor:'rgba(184,255,90,.10)',borderRadius:14,justifyContent:'center',alignItems:'center',transformOrigin:'left center'},
+  sideLabel:{color:'#d8ff9c',fontSize:7,fontWeight:'900'},
+  cornerHandle:{position:'absolute',width:28,height:28,borderRadius:14,backgroundColor:'#10130c',borderWidth:2,borderColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
+  cornerDot:{width:8,height:8,borderRadius:4,backgroundColor:'#b8ff5a'},
+  cornerLabel:{position:'absolute',top:29,color:'#d8ff9c',fontSize:7,fontWeight:'900'},
+  legend:{flexDirection:'row',justifyContent:'space-between',marginTop:7},
+  legendText:{color:'#9aa3af',fontSize:8,fontWeight:'900'},
   row:{flexDirection:'row',gap:8,marginTop:10},
   secondary:{flex:1,backgroundColor:'#20252d',paddingVertical:13,borderRadius:12,alignItems:'center'},
   secondaryText:{color:'#f5f7fa',fontWeight:'900',fontSize:11},
