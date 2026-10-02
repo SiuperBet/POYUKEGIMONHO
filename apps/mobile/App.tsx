@@ -41,7 +41,7 @@ export default function App(){
     <TouchableOpacity style={styles.smallButton} onPress={()=>void addCard(c)}><Text style={styles.smallText}>+</Text></TouchableOpacity>
   </View>;
 
-  const content=tab==='scan'?<ScannerScreen onCaptured={captureSaved}/>:tab==='home'?<ScrollView contentContainerStyle={styles.content}>
+  const content=tab==='scan'?<ScannerScreen onCaptured={captureSaved} onSaveCollection={(card)=>void addCard(card)}/>:tab==='home'?<ScrollView contentContainerStyle={styles.content}>
     <View style={styles.hero}><Text style={styles.kicker}>COLLECTOR INTELLIGENCE</Text><Text style={styles.h1}>Scan. Understand. Collect.</Text><Text style={styles.copy}>Scanner nativo, collezione, grading, espansioni e prezzi in un'unica app.</Text><TouchableOpacity style={styles.primary} onPress={()=>setTab('scan')}><Text style={styles.primaryText}>SCANSIONA CARTA</Text></TouchableOpacity></View>
     <View style={styles.stats}><View style={styles.stat}><Text style={styles.statValue}>{collection.reduce((n,c)=>n+c.quantity,0)}</Text><Text style={styles.muted}>CARTE</Text></View><View style={styles.stat}><Text style={styles.statValue}>{graded.length}</Text><Text style={styles.muted}>GRADING</Text></View><View style={styles.stat}><Text style={styles.statValue}>{uniqueSets}</Text><Text style={styles.muted}>SET</Text></View></View>
     <View style={styles.valueBox}><Text style={styles.kicker}>VALORE STIMATO</Text><Text style={styles.bigValue}>{money(totalValue)}</Text><Text style={styles.muted}>Calcolato da prezzo EUR disponibile × condizione × quantità.</Text></View>
