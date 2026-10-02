@@ -137,6 +137,47 @@ export async function getPokemonSetCards(setId:string,language:PokemonLanguage='
   });
 }
 
+export async function getPokemonMasterSetCards(setId:string,language:PokemonLanguage='en'):Promise<CatalogCard[]>{
+  const key='catalog:pokemon:masterset:v1:'+language+':'+setId;
+  return cacheNonEmpty(key,async()=>{
+    const base=await getPokemonSetCards(setId,language);
+    const detailed=await mapWithConcurrency(base,8,async(card)=>{
+      const rawId=String(card.sourceId||card.id);
+      return getJson<any>('https://api.tcgdex.net/v2/'+language+'/cards/'+encodeURIComponent(rawId)).catch(()=>null);
+    });
+    const out:CatalogCard[]=[];
+    for(let i=0;i<base.length;i++){
+      const card=base[i],detail=detailed[i];
+      const variants=detail?.variants||{normal:true};
+      const defs=[
+        ['normal','Standard',variants.normal],
+        ['reverse','Reverse Holo',variants.reverse],
+        ['holo','Holo',variants.holo],
+        ['firstEdition','1ª Edizione',variants.firstEdition],
+      ] as const;
+      for(const [variant,label,available] of defs){
+        if(!available)continue;
+        const variantId=variant;
+        let price=card.priceEUR;
+        const cm=detail?.pricing?.cardmarket||{};
+        if(variant==='holo')price=Number(cm['avg-holo'])||Number(cm.avg)||price;
+        else if(variant==='reverse')price=Number(detail?.pricing?.tcgplayer?.reverse?.marketPrice)||Number(cm.avg)||price;
+        else price=Number(cm.avg)||price;
+        out.push({
+          ...card,
+          id:card.id+'::'+variantId,
+          printingId:card.id+'::'+variantId,
+          variantId,
+          variantLabel:label,
+          priceEUR:Number.isFinite(Number(price))&&Number(price)>0?Number(price):undefined,
+          priceUSD:variant==='normal'?Number(detail?.pricing?.tcgplayer?.normal?.marketPrice)||undefined:variant==='reverse'?Number(detail?.pricing?.tcgplayer?.reverse?.marketPrice)||undefined:variant==='holo'?Number(detail?.pricing?.tcgplayer?.holo?.marketPrice)||undefined:undefined,
+        });
+      }
+    }
+    return out;
+  });
+}
+
 export async function getYugiohSetCards(setName:string):Promise<CatalogCard[]>{
   const key='catalog:yugioh:set:v3:'+setName;
   return cacheNonEmpty(key,async()=>{

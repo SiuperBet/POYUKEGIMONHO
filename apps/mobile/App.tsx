@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {SafeAreaView,StatusBar,StyleSheet,Text,TouchableOpacity,View,ScrollView,Image,TextInput,ActivityIndicator,Platform,BackHandler} from 'react-native';
 import {ScannerScreen} from './src/scanner/ScannerScreen';
 import {addGraded,addToCollection,loadCollection,loadGraded,saveCollection,saveGraded,updateGraded,updateCollection,deleteGraded,CollectionItem,GradedItem,Condition,CONDITIONS,estimateCardValueEUR,DefectRecord} from './src/data/store';
-import {getSets,getPokemonSetCards,getYugiohSetCards,searchCards,hydrateSetDates,hydrateCardDates,POKEMON_LANGUAGE_LABEL,CatalogCard,CatalogSet,Game} from './src/data/catalog';
+import {getSets,getPokemonSetCards,getPokemonMasterSetCards,getYugiohSetCards,searchCards,hydrateSetDates,hydrateCardDates,POKEMON_LANGUAGE_LABEL,CatalogCard,CatalogSet,Game} from './src/data/catalog';
 import {AppUpdater} from './src/update/AppUpdater';
 import type {VisualAnalysis} from './src/data/visualGrading';
 import type {ProfessionalAnalysis} from './src/data/store';
@@ -31,6 +31,7 @@ export default function App(){
   const [collapsedCollections,setCollapsedCollections]=useState<Record<string,boolean>>({});
   const [collectionCatalog,setCollectionCatalog]=useState<Record<string,CatalogCard[]>>({});
   const [collectionCatalogLoading,setCollectionCatalogLoading]=useState(false);
+  const [masterSetMode,setMasterSetMode]=useState(false);
   const [marketView,setMarketView]=useState<'grid'|'list'>('grid');
   const [condition,setCondition]=useState<Condition>('NM');
   const [expansionQuery,setExpansionQuery]=useState('');
@@ -60,7 +61,7 @@ export default function App(){
       const key=(c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en');
       try{
         const cards=c.game==='pokemon'
-          ? await getPokemonSetCards(String(c.setId||'').replace(/^\w+:/,''),(c.language as any)||'en')
+          ? (masterSetMode ? await getPokemonMasterSetCards(String(c.setId||'').replace(/^\w+:/,''),(c.language as any)||'en') : await getPokemonSetCards(String(c.setId||'').replace(/^\w+:/,''),(c.language as any)||'en'))
           : await getYugiohSetCards(c.setId||c.setName||'');
         return [key,cards] as const;
       }catch{return [key,[] as CatalogCard[]] as const}
@@ -71,7 +72,7 @@ export default function App(){
       setCollectionCatalog(next);
     }).finally(()=>{if(!cancelled)setCollectionCatalogLoading(false)});
     return()=>{cancelled=true};
-  },[tab,collection]);
+  },[tab,collection,masterSetMode]);
 
   const totalValue=useMemo(()=>collection.reduce((sum,c)=>sum+estimateCardValueEUR(c.priceEUR,c.condition||'NM')*c.quantity,0),[collection]);
   const conditionTotals=useMemo(()=>CONDITIONS.map(c=>({condition:c,value:collection.filter(x=>x.condition===c).reduce((sum,x)=>sum+estimateCardValueEUR(x.priceEUR,c)*x.quantity,0),quantity:collection.filter(x=>x.condition===c).reduce((sum,x)=>sum+x.quantity,0)})).filter(x=>x.quantity>0),[collection]);
@@ -198,6 +199,8 @@ export default function App(){
       <TouchableOpacity onPress={()=>setCollectionSort('numberAsc')} style={collectionSort==='numberAsc'?styles.filterOn:styles.filterOff}><Text style={collectionSort==='numberAsc'?styles.filterOnText:styles.filterText}>Numero ↑</Text></TouchableOpacity>
       <TouchableOpacity onPress={()=>setCollectionSort('numberDesc')} style={collectionSort==='numberDesc'?styles.filterOn:styles.filterOff}><Text style={collectionSort==='numberDesc'?styles.filterOnText:styles.filterText}>Numero ↓</Text></TouchableOpacity>
     </View>
+    <View style={styles.viewRow}><Text style={styles.kicker}>TIPO RACCOLTA</Text><TouchableOpacity onPress={()=>setMasterSetMode(false)} style={!masterSetMode?styles.filterOn:styles.filterOff}><Text style={!masterSetMode?styles.filterOnText:styles.filterText}>▣ Set</Text></TouchableOpacity><TouchableOpacity onPress={()=>setMasterSetMode(true)} style={masterSetMode?styles.filterOn:styles.filterOff}><Text style={masterSetMode?styles.filterOnText:styles.filterText}>★ Master Set</Text></TouchableOpacity></View>
+    {masterSetMode&&<Text style={styles.muted}>Master Set: ogni stampa/variante è una carta distinta. Es. 001 Standard + 001 Reverse Holo + 001 Holo = 3 carte.</Text>}
     <View style={styles.viewRow}><Text style={styles.kicker}>VISTA</Text><TouchableOpacity onPress={()=>setCollectionView('grid')} style={collectionView==='grid'?styles.filterOn:styles.filterOff}><Text style={collectionView==='grid'?styles.filterOnText:styles.filterText}>▦ Griglia</Text></TouchableOpacity><TouchableOpacity onPress={()=>setCollectionView('list')} style={collectionView==='list'?styles.filterOn:styles.filterOff}><Text style={collectionView==='list'?styles.filterOnText:styles.filterText}>☰ Lista</Text></TouchableOpacity></View>
     {conditionSelector}
     {collection.length===0?<Text style={styles.muted}>Nessuna carta. Vai in MARKET o SETS e premi +.</Text>:collectionCatalogLoading&&collectionGroups.length===0?<ActivityIndicator/>:collectionGroups.map(g=>{
