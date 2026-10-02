@@ -90,7 +90,9 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
       const data=expandedRegion===r.key?regionPokemon:[];
       return {key:r.key,title:r.title,count:r.end-r.start+1,owned:regionPokemon.filter(p=>ownedSet.has(p.id)).length,starters:r.starters,data:Array.from({length:Math.ceil(data.length/3)},(_,i)=>({items:data.slice(i*3,i*3+3)}))};
     };
-    if(mode==='national'){const data=visible;return [{key:'national',title:'National',count:NATIONAL,owned:data.filter(p=>ownedSet.has(p.id)).length,starters:[133,25,448],data:Array.from({length:Math.ceil(data.length/3)},(_,i)=>({items:data.slice(i*3,i*3+3)}))}];}
+    if(mode==='national'){
+      return REGIONS.map(r=>make(r)).filter(section=>section.data.length>0||!query.trim());
+    }
     return REGIONS.map(make);
   },[mode,visible,ownedSet,expandedRegion]);
 
@@ -113,7 +115,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
         <Image source={{uri:selected.sprite}} style={styles.heroSprite}/>
         <View style={styles.flex}><Text style={styles.heroName}>{pretty(selected.name)}</Text><Text style={styles.muted}>{cards.length} carte nel catalogo TCGdex</Text></View>
       </View>
-      {cardsLoading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico tutte le carte di {pretty(selected.name)}…</Text></View>:cardsError?<Text style={styles.empty}>Impossibile caricare le carte adesso.</Text>:cards.length===0?<Text style={styles.empty}>Nessuna carta trovata per questo Pokémon.</Text>:<FlatList data={cards} keyExtractor={c=>c.id} numColumns={3} contentContainerStyle={styles.grid} columnWrapperStyle={styles.row} renderItem={({item})=>{
+      {cardsLoading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico tutte le carte di {pretty(selected.name)}…</Text></View>:cardsError?<Text style={styles.empty}>Impossibile caricare le carte adesso.</Text>:cards.length===0?<Text style={styles.empty}>Nessuna carta trovata per questo Pokémon.</Text>:<FlatList data={cards} keyExtractor={c=>c.id} numColumns={3} initialNumToRender={12} maxToRenderPerBatch={12} windowSize={7} removeClippedSubviews contentContainerStyle={styles.grid} columnWrapperStyle={styles.row} renderItem={({item})=>{
         const owned=isCardOwned(item);
         return <TouchableOpacity style={[styles.card,!owned&&styles.cardMissing]} activeOpacity={0.82} onPress={()=>onOpenCard(item)}>
           {item.image?<Image source={{uri:item.image}} style={[styles.cardImage,!owned&&styles.cardImageMissing]} resizeMode="contain"/>:<View style={[styles.cardImage,!owned&&styles.cardImageMissing]}/>}
@@ -149,12 +151,13 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
       <View style={styles.modeRow}><TouchableOpacity onPress={()=>setMode('regions')} style={mode==='regions'?styles.modeOn:styles.modeOff}><Text style={mode==='regions'?styles.modeOnText:styles.modeText}>Regioni</Text></TouchableOpacity><TouchableOpacity onPress={()=>setMode('national')} style={mode==='national'?styles.modeOn:styles.modeOff}><Text style={mode==='national'?styles.modeOnText:styles.modeText}>Nazionale</Text></TouchableOpacity></View>
       <Text style={styles.caption}>{mode==='national'?NATIONAL+' Pokémon in ordine nazionale':'10 raccolte regionali · ogni Pokémon apre tutte le sue carte TCG'}</Text>
     </View>
-    {loading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico il Pokédex…</Text></View>:<SectionList sections={sections as any} keyExtractor={(item:DexRow,index:number)=>String(item.items[0]?.id||index)} renderSectionHeader={renderSectionHeader as any} renderItem={renderItem as any} contentContainerStyle={styles.list} stickySectionHeadersEnabled={false} ListHeaderComponent={mode==='regions'?<TouchableOpacity activeOpacity={0.88} onPress={()=>setMode('national')} style={styles.nationalHero}><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>National</Text><Text style={styles.sectionCount}>{visible.filter(p=>ownedSet.has(p.id)).length}/{NATIONAL}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:((Math.min(1,visible.filter(p=>ownedSet.has(p.id)).length/NATIONAL)*100)+'%') as `${number}%`}]}/></View></View><View style={styles.starters}>{[133,25,448].map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View></TouchableOpacity>:null} ListEmptyComponent={<Text style={styles.empty}>Nessun Pokémon trovato.</Text>}/>}
+    {loading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico il Pokédex…</Text></View>:<SectionList style={styles.dexList} sections={sections as any} keyExtractor={(item:DexRow,index:number)=>String(item.items[0]?.id||index)} renderSectionHeader={renderSectionHeader as any} renderItem={renderItem as any} contentContainerStyle={styles.list} stickySectionHeadersEnabled={false} initialNumToRender={18} maxToRenderPerBatch={18} updateCellsBatchingPeriod={50} windowSize={7} removeClippedSubviews ListHeaderComponent={mode==='regions'?<TouchableOpacity activeOpacity={0.88} onPress={()=>setMode('national')} style={styles.nationalHero}><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>Nazionale</Text><Text style={styles.sectionCount}>{visible.filter(p=>ownedSet.has(p.id)).length}/{NATIONAL}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:((Math.min(1,visible.filter(p=>ownedSet.has(p.id)).length/NATIONAL)*100)+'%') as `${number}%`}]}/></View></View><View style={styles.starters}>{[133,25,448].map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View></TouchableOpacity>:null} ListEmptyComponent={<Text style={styles.empty}>Nessun Pokémon trovato.</Text>}/>}
   </View>;
 }
 
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#050608'},
+  dexList:{flex:1},
   flex:{flex:1},
   header:{padding:18,paddingBottom:8},
   topBar:{padding:18,paddingBottom:8,flexDirection:'row',alignItems:'center',gap:10},
@@ -171,7 +174,7 @@ const styles=StyleSheet.create({
   modeText:{color:'#f5f7fa',fontWeight:'800'},
   caption:{color:'#8f98a8',fontSize:11,marginTop:8},
   list:{paddingHorizontal:18,paddingBottom:150},
-  row:{gap:10,marginBottom:10},
+  row:{width:'100%',flexDirection:'row',justifyContent:'flex-start',gap:10,marginBottom:10},
   sectionHeader:{marginTop:8,marginBottom:10,minHeight:118,backgroundColor:'#141b31',borderWidth:1,borderColor:'#303b60',borderRadius:20,overflow:'hidden',flexDirection:'row',alignItems:'center',paddingLeft:16},
   sectionCopy:{flex:1},
   sectionTitleRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},
@@ -183,7 +186,7 @@ const styles=StyleSheet.create({
   progressFill:{height:'100%',backgroundColor:'#8e2bd7'},
   starters:{width:155,height:'100%',flexDirection:'row',alignItems:'flex-end',justifyContent:'center',paddingRight:5},
   starter:{width:66,height:66,marginLeft:-8},
-  pokemonCard:{width:'31.9%',minHeight:172,backgroundColor:'#10152a',borderRadius:15,borderWidth:1,borderColor:'#39476e',padding:7,position:'relative'},pokemonCardMissing:{opacity:0.46,borderColor:'#2b3346'},pokemonCardGhost:{width:'31.9%',minHeight:172,opacity:0},
+  pokemonCard:{width:'31.9%',height:172,backgroundColor:'#10152a',borderRadius:15,borderWidth:1,borderColor:'#39476e',padding:7,position:'relative'},pokemonCardMissing:{opacity:0.46,borderColor:'#2b3346'},pokemonCardGhost:{width:'31.9%',minHeight:172,opacity:0},
   dexNumber:{color:'#b6bdcb',fontSize:12},
   sprite:{width:'100%',height:100,marginTop:2},spriteMissing:{opacity:0.55},
   pokemonName:{color:'#f5f7fa',fontSize:12,fontWeight:'800',textAlign:'center',marginTop:2},pokemonNameMissing:{color:'#8b93a1'},
