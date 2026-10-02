@@ -20,7 +20,6 @@ export function ScannerScreen({onCaptured}:Props){
     try{
       const result=await DocumentScanner.scanDocument({
         maxNumDocuments:1,
-        letUserAdjustCrop:true,
         croppedImageQuality:100,
       });
       const scanned=result.scannedImages?.[0];
