@@ -145,7 +145,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
 }
 
 const styles=StyleSheet.create({
-  root:{flex:1,backgroundColor:'#050608',paddingHorizontal:16,paddingTop:18,paddingBottom:24},
+  root:{flex:1,backgroundColor:'#050608'},scrollContent:{paddingHorizontal:16,paddingTop:18,paddingBottom:160},
   header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14},headerTitle:{flex:1,marginLeft:10},exitButton:{width:40,height:40,borderRadius:12,backgroundColor:'#20252d',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#303640'},exitText:{color:'#f5f7fa',fontSize:30,lineHeight:32,fontWeight:'700'},
   kicker:{color:'#9aa3af',fontSize:10,fontWeight:'900',letterSpacing:1},
   title:{color:'#f5f7fa',fontSize:25,fontWeight:'900',marginTop:4},
