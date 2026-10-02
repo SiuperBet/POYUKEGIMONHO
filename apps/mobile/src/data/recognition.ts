@@ -75,5 +75,5 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   const confidence=top?.score||0;
   const margin=Math.max(0,confidence-second);
   const status=confidence>=0.72&&margin>=0.10?'matched':confidence>=0.42?'possible':'unknown';
-  return {card:status==='matched'?top.card:null,confidence,text,number,language:detectLanguage(text),candidates:ranked.slice(0,8).map(x=>x.card),status,margin};
+  return {card:status==='matched'?(top?.card||null):null,confidence,text,number,language:detectLanguage(text),candidates:ranked.slice(0,8).map(x=>x.card),status,margin};
 }
