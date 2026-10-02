@@ -1,7 +1,45 @@
 {
-  "expo":{"name":"POYUKEGIMONHO","slug":"poyukegimonho","version":"0.1.0","orientation":"portrait","userInterfaceStyle":"automatic","scheme":"poyukegimonho",
-    "ios":{"supportsTablet":true,"bundleIdentifier":"com.siuperbet.poyukegimonho","infoPlist":{"NSCameraUsageDescription":"Usiamo la fotocamera per scansionare le carte.","NSMotionUsageDescription":"Usiamo i sensori di orientamento per mantenere la carta allineata."}},
-    "android":{"package":"com.siuperbet.poyukegimonho","permissions":["CAMERA","VIBRATE"]},
-    "plugins":[["react-native-vision-camera",{"cameraPermissionText":"Consenti a POYUKEGIMONHO di usare la fotocamera per scansionare le carte."}],["expo-sensors",{"motionPermission":"Usiamo i sensori di movimento per mantenere la carta stabile durante la scansione."}]]
+  "expo": {
+    "name": "POYUKEGIMONHO",
+    "slug": "poyukegimonho",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "poyukegimonho",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.siuperbet.poyukegimonho",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Usiamo la fotocamera per scansionare le carte.",
+        "NSMotionUsageDescription": "Usiamo i sensori di orientamento per mantenere la carta allineata."
+      }
+    },
+    "android": {
+      "package": "com.siuperbet.poyukegimonho",
+      "permissions": [
+        "CAMERA",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Consenti a POYUKEGIMONHO di usare la fotocamera per scansionare le carte."
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Usiamo i sensori di movimento per mantenere la carta stabile durante la scansione."
+        }
+      ],
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Consenti a POYUKEGIMONHO di rilevare e ritagliare automaticamente le carte."
+        }
+      ]
+    ]
   }
 }
