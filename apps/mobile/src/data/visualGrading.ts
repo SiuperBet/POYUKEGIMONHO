@@ -60,11 +60,11 @@ export async function analyzeCardCondition(frontUri:string,backUri?:string):Prom
   const back=backUri?await inspect(backUri).catch(()=>undefined):undefined;
   const avg=back?(front.score*.58+back.score*.42):front.score;
   const defects:VisualDefect[]=[
-    {type:'graffi',score:front.scratches+(back?.scratches||0)*.8,severity:'low',confidence:back?.score?0.58:0.42},
-    {type:'pieghe',score:front.creases+(back?.creases||0)*.9,severity:'low',confidence:back?.score?0.62:0.4},
-    {type:'puntini_bianchi',score:front.whitening+(back?.whitening||0)*.9,severity:'low',confidence:back?.score?0.65:0.45},
-    {type:'sporco',score:front.dirt+(back?.dirt||0)*.8,severity:'low',confidence:back?.score?0.55:0.38},
-    {type:'imperfezioni',score:front.imperfections+(back?.imperfections||0)*.7,severity:'low',confidence:back?.score?0.6:0.4}
+    {type:'graffi' as VisualDefectType,score:front.scratches+(back?.scratches||0)*.8,severity:'low',confidence:back?.score?0.58:0.42},
+    {type:'pieghe' as VisualDefectType,score:front.creases+(back?.creases||0)*.9,severity:'low',confidence:back?.score?0.62:0.4},
+    {type:'puntini_bianchi' as VisualDefectType,score:front.whitening+(back?.whitening||0)*.9,severity:'low',confidence:back?.score?0.65:0.45},
+    {type:'sporco' as VisualDefectType,score:front.dirt+(back?.dirt||0)*.8,severity:'low',confidence:back?.score?0.55:0.38},
+    {type:'imperfezioni' as VisualDefectType,score:front.imperfections+(back?.imperfections||0)*.7,severity:'low',confidence:back?.score?0.6:0.4}
   ].map(d=>({...d,severity:severity(d.score)} as VisualDefect));
   const significant=defects.filter(d=>d.score>=38).map(d=>d.type);
   const notes:string[]=[];
