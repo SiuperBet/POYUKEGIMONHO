@@ -1,6 +1,7 @@
 import React,{useMemo,useRef,useState} from 'react';
 import {PanResponder,StyleSheet,Text,TouchableOpacity,View,Image,LayoutChangeEvent} from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
+import {SaveFormat} from 'expo-image-manipulator';
 
 type Props={uri:string;onCancel:()=>void;onConfirm:(uri:string)=>void|Promise<void>};
 type Crop={left:number;top:number;right:number;bottom:number};
@@ -40,7 +41,7 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
       const result=await ImageManipulator.manipulateAsync(uri,[{crop:{
         originX:Math.round(size.width*crop.left),originY:Math.round(size.height*crop.top),
         width:Math.max(1,Math.round(size.width*(crop.right-crop.left))),height:Math.max(1,Math.round(size.height*(crop.bottom-crop.top)))
-      }}],{compress:1,format:ImageManipulator.SaveFormat.JPEG});
+      }}],{compress:1,format:SaveFormat.JPEG});
       await onConfirm(result.uri);
     }finally{setWorking(false)}
   };
