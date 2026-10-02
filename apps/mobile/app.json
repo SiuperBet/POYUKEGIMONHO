@@ -28,13 +28,7 @@
         {
           "cameraPermissionText": "Consenti a POYUKEGIMONHO di usare la fotocamera per scansionare le carte."
         }
-      ],
-      [
-        "expo-sensors",
-        {
-          "motionPermission": "Usiamo i sensori di movimento per mantenere la carta stabile durante la scansione."
-        }
-      ],
+      ]
       [
         "react-native-document-scanner-plugin",
         {
