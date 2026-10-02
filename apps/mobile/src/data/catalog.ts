@@ -90,7 +90,7 @@ export async function searchCards(game:Game,query:string):Promise<CatalogCard[]>
   if(!q)return [];
   if(game==='pokemon'){
     const data=await getJson<any[]>('https://api.tcgdex.net/v2/en/cards?name='+encodeURIComponent(q));
-    return data.slice(0,40).map(c=>({id:c.id,game:'pokemon',name:c.name,setId:c.set?.id,setName:c.set?.name,number:numberOf(c.localId),rarity:c.rarity,image:c.image?c.image+'/high.webp':undefined,priceEUR:priceFromPokemon(c)}));
+    return data.slice(0,40).map(c=>({id:c.id,game:'pokemon',name:c.name,setId:c.set?.id,setName:c.set?.name,number:numberOf(c.localId),rarity:c.rarity,image:c.image?c.image+'/high.webp':undefined,...pricingFromPokemon(c)}));
   }
   const data=await getJson<any>('https://db.ygoprodeck.com/api/v7/cardinfo.php?fname='+encodeURIComponent(q)+'&num=40&offset=0');
   return (data.data||[]).map((c:any)=>({id:String(c.id),game:'yugioh',name:c.name,number:c.card_sets?.[0]?.set_code,rarity:c.card_sets?.[0]?.set_rarity,image:c.card_images?.[0]?.image_url_small,priceEUR:priceFromYgo(c),priceUSD:Number(c.card_prices?.[0]?.tcgplayer_price)||undefined}));
