@@ -7,9 +7,9 @@ import type {VisualAnalysis} from '../data/visualGrading';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
-type Props={onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
+type Props={onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
-export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis}:Props){
+export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
   const [lastPhoto,setLastPhoto]=useState<string|null>(null);const [backPhoto,setBackPhoto]=useState<string|null>(null);const [scanningBack,setScanningBack]=useState(false);
   const [message,setMessage]=useState('Premi SCANSIONE: il telefono rileverà automaticamente i 4 bordi.');
@@ -76,7 +76,8 @@ export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onCond
 
   return <View style={styles.root}>
     <View style={styles.header}>
-      <View>
+      <TouchableOpacity style={styles.exitButton} onPress={()=>onExit?.()}><Text style={styles.exitText}>‹</Text></TouchableOpacity>
+      <View style={styles.headerTitle}>
         <Text style={styles.kicker}>POYUKEGIMONHO • CARD SCANNER</Text>
         <Text style={styles.title}>Scansione automatica</Text>
       </View>
@@ -134,7 +135,7 @@ export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onCond
 
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#050608',paddingHorizontal:16,paddingTop:18,paddingBottom:24},
-  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14},
+  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14},headerTitle:{flex:1,marginLeft:10},exitButton:{width:40,height:40,borderRadius:12,backgroundColor:'#20252d',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#303640'},exitText:{color:'#f5f7fa',fontSize:30,lineHeight:32,fontWeight:'700'},
   kicker:{color:'#9aa3af',fontSize:10,fontWeight:'900',letterSpacing:1},
   title:{color:'#f5f7fa',fontSize:25,fontWeight:'900',marginTop:4},
   nativeBadge:{backgroundColor:'#b8ff5a',paddingHorizontal:10,paddingVertical:7,borderRadius:10},
