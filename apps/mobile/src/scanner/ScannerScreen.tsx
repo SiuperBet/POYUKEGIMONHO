@@ -24,7 +24,8 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
   const [scanGeometry,setScanGeometry]=useState<{width:number;height:number;aspect:number;ok:boolean}|null>(null);
   const [game,setGame]=useState<'pokemon'|'yugioh'>('pokemon');
   const [professionalAnalysis,setProfessionalAnalysis]=useState<ProfessionalAnalysis|null>(null);
-  const [recognizedVariants,setRecognizedVariants]=useState<CatalogCard[]>([]);\n  const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
+  const [recognizedVariants,setRecognizedVariants]=useState<CatalogCard[]>([]);
+  const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
   const [professionalRunning,setProfessionalRunning]=useState(false);
   const launched=useRef(false);
 
@@ -39,7 +40,8 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
       const result=await DocumentScanner.scanDocument({
         maxNumDocuments:1,
         croppedImageQuality:100,
-        // Il rilevamento nativo ML Kit collega automaticamente i quattro lati e corregge la prospettiva.\n        // Manteniamo la schermata di verifica dei vertici per consentire la conferma manuale quando serve.
+        // Il rilevamento nativo ML Kit collega automaticamente i quattro lati e corregge la prospettiva.
+        // Manteniamo la schermata di verifica dei vertici per consentire la conferma manuale quando serve.
       });
       const scanned=result.scannedImages?.[0];
       if(scanned){
