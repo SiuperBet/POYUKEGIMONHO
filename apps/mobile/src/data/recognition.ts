@@ -84,9 +84,14 @@ function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:Po
   if(name&&source.includes(name))score+=0.32;
   if(compactName.length>=4&&compactSource.includes(compactName))score+=0.18;
   if(card.number){
-    const n=String(card.number).replace(/\s/g,'').replace(/^0+/,'');
-    if(locals.includes(n))score+=0.42;
-    else if(locals.some(x=>x&&n&&x.split('/')[0]===n.split('/')[0]))score+=0.20;
+    const rawNumber=String(card.number).replace(/\s/g,'');
+    const n=rawNumber.split('/')[0].replace(/^[^0-9]*/,'').replace(/^0+/,'')||rawNumber;
+    const exactLocal=locals.some(x=>{
+      const lx=String(x).split('/')[0].replace(/^[^0-9]*/,'').replace(/^0+/,'')||String(x);
+      return lx===n;
+    });
+    if(exactLocal)score+=0.46;
+    else if(locals.some(x=>String(x).replace(/^0+/,'')===rawNumber.replace(/^0+/,'').split('/')[0]))score+=0.22;
   }
   if(detected&&card.language===detected)score+=0.10;
   if(card.variantLabel){
@@ -193,9 +198,20 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   const text=await collectOcr(uri,game);
   const numbers=extractNumbers(text);
   const detected=game==='pokemon'?detectLanguageCode(text):undefined;
-  const queries=buildQueries(text);
+  const queries=[...new Set([
+    ...buildQueries(text),
+    ...text.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.length>=3&&x.length<=80)
+  ])].slice(0,24);
   const pokemonNames=game==='pokemon'?await detectPokemonNames(text):[];
   let candidates=await candidateSearch(game,queries,numbers.locals,detected,pokemonNames);
+  if(candidates.length===0){
+    const emergencyQueries=[...new Set([
+      ...numbers.locals.slice(0,6),
+      ...queries.filter(q=>/[A-Za-zÀ-ÿ]{3,}/.test(q)).slice(0,8)
+    ])];
+    const emergency=await Promise.all(emergencyQueries.map(q=>searchCards(game,q).catch(()=>[])));
+    candidates=[...new Map(emergency.flat().map(card=>[card.id,card])).values()];
+  }
 
   if(candidates.length===0&&game==='pokemon'){
     const probes=[...pokemonNames.slice(0,2),...numbers.locals.slice(0,2),...queries.slice(0,3)];
