@@ -23,7 +23,8 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
   const [gradedId,setGradedId]=useState<string|undefined>();
   const [scanGeometry,setScanGeometry]=useState<{width:number;height:number;aspect:number;ok:boolean}|null>(null);
   const [game,setGame]=useState<'pokemon'|'yugioh'>('pokemon');
-  const [professionalAnalysis,setProfessionalAnalysis]=useState<ProfessionalAnalysis|null>(null);\n  const [recognizedVariants,setRecognizedVariants]=useState<CatalogCard[]>([]);\n  const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
+  const [professionalAnalysis,setProfessionalAnalysis]=useState<ProfessionalAnalysis|null>(null);
+  const [recognizedVariants,setRecognizedVariants]=useState<CatalogCard[]>([]);\n  const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
   const [professionalRunning,setProfessionalRunning]=useState(false);
   const launched=useRef(false);
 
