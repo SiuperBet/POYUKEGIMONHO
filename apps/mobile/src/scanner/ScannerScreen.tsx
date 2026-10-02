@@ -7,7 +7,9 @@ import DocumentScanner from 'react-native-document-scanner-plugin';
 
 type MotionState={available:boolean;roll:number;movement:number};
 
-export function ScannerScreen(){
+type Props={onCaptured?:(uri:string)=>void};
+
+export function ScannerScreen({onCaptured}:Props){
   const device=useCameraDevice('back');
   const {hasPermission,requestPermission}=useCameraPermission();
   const camera=useRef<Camera>(null);
@@ -71,6 +73,7 @@ export function ScannerScreen(){
       if(scanned){
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
         setLastPhoto(uri);setConfirmed(true);setMessage('Carta rilevata e ritagliata');
+        onCaptured?.(uri);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }else setMessage('Nessuna carta acquisita');
     }catch(error){
