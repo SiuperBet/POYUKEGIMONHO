@@ -17,7 +17,8 @@ function lineScore(edges:Edge[],theta:number,rho:number,w:number,h:number){
   let score=0,count=0,orientation=0;
   for(const e of edges){
     if(Math.abs(e.x*c+e.y*s-rho)<2.8){
-      const diff=Math.abs(Math.atan2(Math.sin(e.normal-theta),Math.cos(e.normal-theta)));
+      const rawDiff=Math.abs(Math.atan2(Math.sin(e.normal-theta),Math.cos(e.normal-theta)));
+      const diff=Math.min(rawDiff,Math.PI-rawDiff);
       if(diff>normalTol)continue;
       const along=-e.x*s+e.y*c;
       if(along>-Math.max(w,h)*.55&&along<Math.max(w,h)*.55){
@@ -72,12 +73,12 @@ export function detectCardQuad(image:ImageData):DetectedQuad|null{
   const gx=-gray[(y-1)*w+x-1]-2*gray[y*w+x-1]-gray[(y+1)*w+x-1]+gray[(y-1)*w+x+1]+2*gray[y*w+x+1]+gray[(y+1)*w+x+1];
   const gy=-gray[(y-1)*w+x-1]-2*gray[(y-1)*w+x]-gray[(y-1)*w+x+1]+gray[(y+1)*w+x-1]+2*gray[(y+1)*w+x]+gray[(y+1)*w+x+1];
   const v=Math.hypot(gx,gy);
-  if(v>58)edges.push({x,y,v,normal:Math.atan2(gy,gx)});
+  if(v>42)edges.push({x,y,v,normal:Math.atan2(gy,gx)});
  }
- if(edges.length<100)return null;
+ if(edges.length<70)return null;
 
  let best:{top:any;bottom:any;left:any;right:any;score:number;theta:number;perp:number}|null=null;
- for(let deg=-22;deg<=22;deg+=2){
+ for(let deg=-35;deg<=35;deg+=2){
   const t=deg*Math.PI/180,perp=t+Math.PI/2;
   const horiz=detectPair(edges,perp,w,h).filter(x=>Math.abs(x.rho-h/2)<h*.49).slice(0,3);
   const vert=detectPair(edges,t,w,h).filter(x=>Math.abs(x.rho-w/2)<w*.49).slice(0,3);
@@ -107,7 +108,7 @@ export function detectCardQuad(image:ImageData):DetectedQuad|null{
  const metrics=quadMetrics(points,w,h);
  const targetAspect=.714;
  const aspectFit=Math.min(metrics.aspect/targetAspect,targetAspect/metrics.aspect);
- const confidence=Math.min(1,.34+Math.min(.34,best.score/46000)+Math.min(.18,edges.length/(w*h)*7)+Math.max(0,.10-metrics.parallel*.18)+Math.max(0,(aspectFit-.78)*.70));
+ const confidence=Math.min(1,.38+Math.min(.30,best.score/42000)+Math.min(.18,edges.length/(w*h)*6)+Math.max(0,.10-metrics.parallel*.18)+Math.max(0,(aspectFit-.78)*.70));
  return {points:points.map(p=>({x:p.x/w*100,y:p.y/h*100})),confidence};
 }
 
