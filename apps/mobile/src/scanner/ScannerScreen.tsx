@@ -1,131 +1,133 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {StyleSheet,Text,TouchableOpacity,View,Image} from 'react-native';
-import {DeviceMotion} from 'expo-sensors';
-import {Camera,useCameraDevice,useCameraPermission} from 'react-native-vision-camera';
-import * as Haptics from 'expo-haptics';
+import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator} from 'react-native';
 import DocumentScanner from 'react-native-document-scanner-plugin';
-
-type MotionState={available:boolean;roll:number;movement:number};
+import * as Haptics from 'expo-haptics';
 
 type Props={onCaptured?:(uri:string)=>void};
 
 export function ScannerScreen({onCaptured}:Props){
-  const device=useCameraDevice('back');
-  const {hasPermission,requestPermission}=useCameraPermission();
-  const camera=useRef<Camera>(null);
-  const [torch,setTorch]=useState(false);
-  const [zoom,setZoom]=useState(0);
-  const [ready,setReady]=useState(false);
-  const [processing,setProcessing]=useState(false);
-  const [message,setMessage]=useState('Inquadra una carta');
-  const [motion,setMotion]=useState<MotionState>({available:false,roll:0,movement:0});
-  const [lastPhoto,setLastPhoto]=useState<string|null>(null);
-  const [confirmed,setConfirmed]=useState(false);
   const [scannerOpen,setScannerOpen]=useState(false);
-
-  useEffect(()=>{if(!hasPermission)void requestPermission()},[hasPermission,requestPermission]);
-
-  useEffect(()=>{
-    DeviceMotion.setUpdateInterval(100);
-    const subscription=DeviceMotion.addListener(({rotation,rotationRate})=>{
-      const roll=Math.abs(rotation?.gamma??0);
-      const movement=rotationRate?Math.hypot(rotationRate.alpha,rotationRate.beta,rotationRate.gamma):0;
-      setMotion({available:true,roll,movement});
-    });
-    return()=>subscription.remove();
-  },[]);
-
-  if(!hasPermission)return <View style={styles.center}><Text style={styles.title}>Fotocamera necessaria</Text><Text style={styles.copy}>Concedi l'accesso per usare lo scanner nativo.</Text><TouchableOpacity style={styles.primary} onPress={()=>void requestPermission()}><Text style={styles.primaryText}>Consenti fotocamera</Text></TouchableOpacity></View>;
-  if(!device)return <View style={styles.center}><Text style={styles.title}>Camera non disponibile</Text></View>;
-
-  const levelOk=!motion.available||(motion.roll<=6&&motion.movement<8);
-  const levelLabel=!motion.available?'Bolla — sensore n/d':levelOk?'Bolla OK':motion.movement>=8?'Ferma il telefono':'Allinea '+motion.roll.toFixed(0)+'°';
-  const targetColor=levelOk?'#b8ff5a':motion.roll>12?'#ff6b6b':'#ffd166';
-
-  const capture=async()=>{
-    if(!camera.current||processing)return;
-    if(motion.available&&!levelOk){
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setMessage('Stabilizza il telefono prima dello scatto');
-      return;
-    }
-    setProcessing(true);setMessage('Acquisizione…');
-    try{
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const photo=await camera.current.takePhoto({enableShutterSound:false,flash:torch?'on':'off'});
-      const uri=photo.path.startsWith('file://')?photo.path:'file://'+photo.path;
-      setLastPhoto(uri);setConfirmed(false);setMessage('Controlla l’acquisizione');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }catch{
-      setMessage('Acquisizione non riuscita');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }finally{setProcessing(false)}
-  };
-
-  const retry=()=>{setLastPhoto(null);setConfirmed(false);setMessage('Inquadra una carta')};
+  const [lastPhoto,setLastPhoto]=useState<string|null>(null);
+  const [message,setMessage]=useState('Premi SCANSIONE: il telefono rileverà automaticamente i 4 bordi.');
+  const [error,setError]=useState<string|null>(null);
+  const launched=useRef(false);
 
   const smartScan=async()=>{
     if(scannerOpen)return;
-    setScannerOpen(true);setMessage('Rilevamento bordi…');
+    setError(null);
+    setScannerOpen(true);
+    setMessage('Apertura scanner nativo…');
     try{
-      const result=await DocumentScanner.scanDocument({maxNumDocuments:1});
+      const result=await DocumentScanner.scanDocument({
+        maxNumDocuments:1,
+        letUserAdjustCrop:true,
+        croppedImageQuality:100,
+      });
       const scanned=result.scannedImages?.[0];
       if(scanned){
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
-        setLastPhoto(uri);setConfirmed(true);setMessage('Carta rilevata e ritagliata');
+        setLastPhoto(uri);
+        setMessage('Carta rilevata: bordi e prospettiva corretti.');
         onCaptured?.(uri);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }else setMessage('Nessuna carta acquisita');
-    }catch(error){
-      const text=String(error??'').toLowerCase();
-      setMessage(text.includes('cancel')?'Scansione annullata':'Scanner automatico non disponibile');
-    }finally{setScannerOpen(false)}
+      }else{
+        setMessage('Nessuna carta acquisita.');
+      }
+    }catch(errorValue){
+      const text=String(errorValue??'');
+      const cancelled=/cancel|dismiss|back/i.test(text);
+      setMessage(cancelled?'Scansione annullata.':'Scanner nativo non disponibile.');
+      if(!cancelled)setError('Il sistema non ha potuto avviare lo scanner. Puoi riprovare.');
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(()=>{});
+    }finally{
+      setScannerOpen(false);
+    }
   };
-  const confirm=()=>{setConfirmed(true);setMessage('Acquisita • pronta per detection → crop → recognition')};
-  const actualZoom=device.minZoom+(device.maxZoom-device.minZoom)*zoom;
+
+  useEffect(()=>{
+    if(!launched.current){
+      launched.current=true;
+      void smartScan();
+    }
+  },[]);
+
+  const retry=()=>{setLastPhoto(null);setError(null);setMessage('Pronto: premi SCANSIONE per rilevare automaticamente i quattro bordi.');};
+  const rescan=()=>{setLastPhoto(null);void smartScan();};
 
   return <View style={styles.root}>
-    <Camera ref={camera} style={StyleSheet.absoluteFill} device={device} isActive={!scannerOpen&&!lastPhoto} photo photoQualityBalance="quality" torch={torch?'on':'off'} zoom={actualZoom} onInitialized={()=>setReady(true)}/>
-    <View style={styles.scrim}/>
-    <View style={styles.top}>
-      <View style={styles.pill}><Text style={styles.pillText}>{ready?'● Camera pronta':'● Avvio camera'}</Text></View>
-      <View style={styles.pill}><Text style={styles.pillText}>{levelLabel}</Text></View>
+    <View style={styles.header}>
+      <View>
+        <Text style={styles.kicker}>POYUKEGIMONHO • CARD SCANNER</Text>
+        <Text style={styles.title}>Scansione automatica</Text>
+      </View>
+      <View style={styles.nativeBadge}><Text style={styles.nativeBadgeText}>NATIVO</Text></View>
     </View>
-    <View style={[styles.target,{borderColor:targetColor}]}>
-      <View style={[styles.corner,styles.tl,{borderColor:targetColor}]}/><View style={[styles.corner,styles.tr,{borderColor:targetColor}]}/><View style={[styles.corner,styles.br,{borderColor:targetColor}]}/><View style={[styles.corner,styles.bl,{borderColor:targetColor}]}/>
-      <Text style={styles.hint}>{message}</Text>
-    </View>
-    {lastPhoto&&<View style={styles.review}>
-      <Image source={{uri:lastPhoto}} style={styles.reviewImage} resizeMode="contain"/>
-      <View style={styles.reviewPanel}>
-        <Text style={styles.reviewTitle}>{confirmed?'Acquisizione confermata':'Verifica la foto'}</Text>
-        <Text style={styles.reviewCopy}>{confirmed?'La foto è pronta per il pipeline condiviso.':'Controlla bordi, riflessi e nitidezza prima di continuare.'}</Text>
-        <View style={styles.reviewActions}>
-          <TouchableOpacity style={styles.secondary} onPress={retry}><Text style={styles.secondaryText}>Riprova</Text></TouchableOpacity>
-          {!confirmed&&<TouchableOpacity style={styles.primary} onPress={confirm}><Text style={styles.primaryText}>Usa foto</Text></TouchableOpacity>}
+
+    <View style={styles.stage}>
+      {lastPhoto?
+        <Image source={{uri:lastPhoto}} style={styles.preview} resizeMode="contain"/>:
+        <View style={styles.placeholder}>
+          <View style={styles.cardOutline}>
+            <View style={[styles.corner,styles.tl]}/><View style={[styles.corner,styles.tr]}/><View style={[styles.corner,styles.br]}/><View style={[styles.corner,styles.bl]}/>
+            <Text style={styles.cardIcon}>▣</Text>
+          </View>
+          <Text style={styles.placeholderTitle}>{scannerOpen?'Rilevamento automatico…':'Scanner pronto'}</Text>
+          <Text style={styles.placeholderCopy}>Lo scanner nativo del telefono individua la carta, segue i quattro angoli e corregge automaticamente prospettiva e crop.</Text>
+          {scannerOpen&&<ActivityIndicator size="small"/>}
         </View>
+      }
+      <View style={styles.status}>
+        <View style={styles.statusDot}/>
+        <Text style={styles.statusText}>{message}</Text>
+      </View>
+    </View>
+
+    {error&&<View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}
+
+    {lastPhoto&&<View style={styles.resultPanel}>
+      <Text style={styles.resultTitle}>Carta acquisita e raddrizzata</Text>
+      <Text style={styles.resultCopy}>Questa immagine è il risultato del crop/perspective correction dello scanner nativo ed entra nel pipeline di POYUKEGIMONHO.</Text>
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.secondary} onPress={retry}><Text style={styles.secondaryText}>Riprova</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.primary} onPress={rescan}><Text style={styles.primaryText}>Nuova scansione</Text></TouchableOpacity>
       </View>
     </View>}
-    <TouchableOpacity style={styles.smartButton} onPress={()=>void smartScan()} disabled={scannerOpen||!!lastPhoto}><Text style={styles.smartText}>{scannerOpen?'RILEVAMENTO…':'RILEVA BORDI AUTOMATICAMENTE'}</Text></TouchableOpacity>
-    <View style={styles.bottom}>
-      <TouchableOpacity style={styles.side} onPress={()=>setTorch(v=>!v)}><Text style={styles.sideText}>{torch?'☀︎':'☼'}{String.fromCharCode(10)}LUCE</Text></TouchableOpacity>
-      <TouchableOpacity accessibilityLabel="Scatta" disabled={processing||!!lastPhoto} style={[styles.shutter,(processing||lastPhoto)&&styles.disabled]} onPress={capture}><View style={styles.shutterInner}/></TouchableOpacity>
-      <TouchableOpacity style={styles.side} onPress={()=>setZoom(v=>v>=.66?0:v+.33)}><Text style={styles.sideText}>{zoom===0?'1×':zoom<.66?'2×':'3×'}{String.fromCharCode(10)}ZOOM</Text></TouchableOpacity>
+
+    {!lastPhoto&&<TouchableOpacity style={styles.scanButton} onPress={()=>void smartScan()} disabled={scannerOpen}>
+      <Text style={styles.scanButtonText}>{scannerOpen?'RILEVAMENTO…':'SCANSIONE'}</Text>
+      <Text style={styles.scanButtonSub}>BORDI • ANGOLI • PROSPETTIVA</Text>
+    </TouchableOpacity>}
+
+    <View style={styles.infoRow}>
+      <View style={styles.info}><Text style={styles.infoTitle}>4 BORDI</Text><Text style={styles.infoCopy}>rilevati automaticamente</Text></View>
+      <View style={styles.info}><Text style={styles.infoTitle}>CROP</Text><Text style={styles.infoCopy}>prospettiva corretta</Text></View>
+      <View style={styles.info}><Text style={styles.infoTitle}>QUALITÀ</Text><Text style={styles.infoCopy}>JPEG al massimo</Text></View>
     </View>
   </View>;
 }
 
 const styles=StyleSheet.create({
-  root:{flex:1,backgroundColor:'#050608'},scrim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.12)'},
-  center:{flex:1,backgroundColor:'#0b0d10',alignItems:'center',justifyContent:'center',padding:28},title:{color:'#f5f7fa',fontSize:24,fontWeight:'800',textAlign:'center'},copy:{color:'#9aa3af',fontSize:15,textAlign:'center',marginTop:10,marginBottom:22},
-  primary:{backgroundColor:'#b8ff5a',paddingHorizontal:18,paddingVertical:13,borderRadius:14},primaryText:{color:'#10130c',fontWeight:'800'},
-  secondary:{backgroundColor:'#1a1e24',paddingHorizontal:18,paddingVertical:13,borderRadius:14,borderWidth:1,borderColor:'#2a3038'},secondaryText:{color:'#f5f7fa',fontWeight:'800'},
-  top:{position:'absolute',top:54,left:18,right:18,flexDirection:'row',justifyContent:'space-between'},pill:{paddingHorizontal:11,paddingVertical:8,borderRadius:99,backgroundColor:'rgba(8,10,13,.72)',borderWidth:1,borderColor:'rgba(255,255,255,.14)'},pillText:{color:'#fff',fontSize:11,fontWeight:'800'},
-  target:{position:'absolute',left:'12%',right:'12%',top:'21%',bottom:'25%',borderWidth:2,borderRadius:14,alignItems:'center',justifyContent:'flex-end'},
-  corner:{position:'absolute',width:30,height:30},tl:{left:-2,top:-2,borderLeftWidth:4,borderTopWidth:4,borderTopLeftRadius:10},tr:{right:-2,top:-2,borderRightWidth:4,borderTopWidth:4,borderTopRightRadius:10},br:{right:-2,bottom:-2,borderRightWidth:4,borderBottomWidth:4,borderBottomRightRadius:10},bl:{left:-2,bottom:-2,borderLeftWidth:4,borderBottomWidth:4,borderBottomLeftRadius:10},
-  hint:{marginBottom:16,color:'#fff',fontWeight:'800',fontSize:13,backgroundColor:'rgba(8,10,13,.72)',paddingHorizontal:12,paddingVertical:8,borderRadius:99},
-  review:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(5,6,8,.94)',paddingTop:92,paddingHorizontal:18,paddingBottom:150},reviewImage:{flex:1,width:'100%',borderRadius:18},reviewPanel:{marginTop:12,padding:16,borderRadius:18,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},reviewTitle:{color:'#f5f7fa',fontSize:18,fontWeight:'800'},reviewCopy:{color:'#9aa3af',fontSize:13,lineHeight:19,marginTop:6},reviewActions:{flexDirection:'row',gap:10,marginTop:14},
-  smartButton:{position:'absolute',left:24,right:24,bottom:122,height:46,borderRadius:14,backgroundColor:'#b8ff5a',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#d8ff9c'},smartText:{color:'#10130c',fontWeight:'900',fontSize:12,letterSpacing:.4},
-  bottom:{position:'absolute',left:0,right:0,bottom:38,flexDirection:'row',alignItems:'center',justifyContent:'space-evenly'},side:{width:72,height:58,alignItems:'center',justifyContent:'center'},sideText:{color:'#fff',fontSize:11,fontWeight:'800',textAlign:'center',lineHeight:17},
-  shutter:{width:78,height:78,borderRadius:39,borderWidth:5,borderColor:'#fff',backgroundColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},shutterInner:{width:60,height:60,borderRadius:30,borderWidth:2,borderColor:'#10130c'},disabled:{opacity:.55}
+  root:{flex:1,backgroundColor:'#050608',paddingHorizontal:16,paddingTop:18,paddingBottom:24},
+  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14},
+  kicker:{color:'#9aa3af',fontSize:10,fontWeight:'900',letterSpacing:1},
+  title:{color:'#f5f7fa',fontSize:25,fontWeight:'900',marginTop:4},
+  nativeBadge:{backgroundColor:'#b8ff5a',paddingHorizontal:10,paddingVertical:7,borderRadius:10},
+  nativeBadgeText:{color:'#10130c',fontSize:10,fontWeight:'900'},
+  stage:{flex:1,minHeight:420,borderRadius:24,overflow:'hidden',borderWidth:1,borderColor:'#2a3038',backgroundColor:'#0d1014',alignItems:'center',justifyContent:'center',padding:18},
+  preview:{width:'100%',height:'100%',borderRadius:18,backgroundColor:'#080a0d'},
+  placeholder:{alignItems:'center',justifyContent:'center',maxWidth:310},
+  cardOutline:{width:170,height:238,borderWidth:2,borderColor:'#b8ff5a',borderRadius:12,alignItems:'center',justifyContent:'center',position:'relative',backgroundColor:'#151a1e',shadowColor:'#b8ff5a',shadowOpacity:.15,shadowRadius:20},
+  corner:{position:'absolute',width:28,height:28,borderColor:'#b8ff5a'},tl:{left:-2,top:-2,borderLeftWidth:4,borderTopWidth:4,borderTopLeftRadius:9},tr:{right:-2,top:-2,borderRightWidth:4,borderTopWidth:4,borderTopRightRadius:9},br:{right:-2,bottom:-2,borderRightWidth:4,borderBottomWidth:4,borderBottomRightRadius:9},bl:{left:-2,bottom:-2,borderLeftWidth:4,borderBottomWidth:4,borderBottomLeftRadius:9},
+  cardIcon:{color:'#b8ff5a',fontSize:42,opacity:.8},
+  placeholderTitle:{color:'#f5f7fa',fontSize:18,fontWeight:'900',marginTop:20,textAlign:'center'},
+  placeholderCopy:{color:'#9aa3af',fontSize:13,lineHeight:19,textAlign:'center',marginTop:8,marginBottom:16},
+  status:{position:'absolute',left:16,right:16,bottom:16,backgroundColor:'rgba(8,10,13,.86)',borderWidth:1,borderColor:'#2a3038',borderRadius:14,padding:11,flexDirection:'row',alignItems:'center',gap:8},
+  statusDot:{width:8,height:8,borderRadius:4,backgroundColor:'#b8ff5a'},statusText:{color:'#f5f7fa',fontSize:11,fontWeight:'700',flex:1},
+  scanButton:{marginTop:14,backgroundColor:'#b8ff5a',borderRadius:16,paddingVertical:15,alignItems:'center',borderWidth:1,borderColor:'#d8ff9c'},
+  scanButtonText:{color:'#10130c',fontSize:16,fontWeight:'900'},scanButtonSub:{color:'#263018',fontSize:9,fontWeight:'900',letterSpacing:1,marginTop:3},
+  resultPanel:{marginTop:12,padding:15,borderRadius:17,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},
+  resultTitle:{color:'#f5f7fa',fontSize:17,fontWeight:'900'},resultCopy:{color:'#9aa3af',fontSize:12,lineHeight:18,marginTop:6},
+  actions:{flexDirection:'row',gap:9,marginTop:13},primary:{flex:1,backgroundColor:'#b8ff5a',paddingVertical:12,borderRadius:12,alignItems:'center'},primaryText:{color:'#10130c',fontWeight:'900',fontSize:12},secondary:{flex:1,backgroundColor:'#20252d',paddingVertical:12,borderRadius:12,alignItems:'center'},secondaryText:{color:'#f5f7fa',fontWeight:'900',fontSize:12},
+  error:{marginTop:10,padding:11,borderRadius:12,backgroundColor:'#2a1518',borderWidth:1,borderColor:'#5a252b'},errorText:{color:'#ff9b9b',fontSize:11},
+  infoRow:{flexDirection:'row',gap:8,marginTop:12},info:{flex:1,padding:11,borderRadius:13,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},infoTitle:{color:'#b8ff5a',fontSize:10,fontWeight:'900'},infoCopy:{color:'#9aa3af',fontSize:9,marginTop:3,lineHeight:13}
 });
