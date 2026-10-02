@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as RNImage} from 'react-native';
 import type {CatalogCard} from '../data/catalog';
 import {CONDITIONS,Condition,estimateCardValueEUR} from '../data/store';
-import {recognizeCardImage,RecognitionResult} from '../data/recognition';
+import type {RecognitionResult} from '../data/recognition';
 import type {VisualAnalysis} from '../data/visualGrading';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
@@ -41,7 +41,7 @@ export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onCond
         setMessage('✓ 4 lati rilevati • 4 angoli collegati • prospettiva corretta');
         await new Promise<void>(resolve=>RNImage.getSize(uri, (width,height)=>{const aspect=width/Math.max(1,height);setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});resolve();}, ()=>resolve()));
         setMessage('Bordo carta verificato • avvio riconoscimento…');
-        const identified=await recognizeCardImage(uri,'pokemon').catch(()=>null);
+        const {recognizeCardImage}=await import('../data/recognition'); const identified=await recognizeCardImage(uri,'pokemon').catch(()=>null);
         setRecognition(identified);
         setMessage(identified?.card?'Carta riconosciuta automaticamente.':'Carta acquisita: riconoscimento da verificare.');
         const savedId=await onCaptured?.(uri,identified?.card||undefined);
