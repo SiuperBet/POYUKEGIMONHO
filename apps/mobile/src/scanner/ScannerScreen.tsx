@@ -68,7 +68,7 @@ export function ScannerScreen({onCaptured}:Props){
     if(scannerOpen)return;
     setScannerOpen(true);setMessage('Rilevamento bordi…');
     try{
-      const result=await DocumentScanner.scanDocument({maxNumDocuments:1,letUserAdjustCrop:true});
+      const result=await DocumentScanner.scanDocument({maxNumDocuments:1});
       const scanned=result.scannedImages?.[0];
       if(scanned){
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
