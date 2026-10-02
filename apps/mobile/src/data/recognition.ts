@@ -1,4 +1,4 @@
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+import TextRecognition,{TextRecognitionScript} from '@react-native-ml-kit/text-recognition';
 import {CatalogCard,Game,PokemonLanguage,POKEMON_LANGUAGES,searchCards} from './catalog';
 
 export type RecognitionResult={
@@ -98,7 +98,17 @@ async function candidateSearch(game:Game,queries:string[],numberLocals:string[],
 
 export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise<RecognitionResult>{
   let text='';
-  try{text=(await TextRecognition.recognize(uri)).text||'';}catch{}
+  try{text=(await TextRecognition.recognize(uri,TextRecognitionScript.LATIN)).text||'';}catch{}
+  const latinUseful=/[A-Za-zÀ-ÿ]{3,}/.test(text)&&text.replace(/\s/g,'').length>=10;
+  if(!latinUseful&&game==='pokemon'){
+    const scriptResults=await Promise.all([
+      TextRecognition.recognize(uri,TextRecognitionScript.JAPANESE).catch(()=>({text:''} as any)),
+      TextRecognition.recognize(uri,TextRecognitionScript.CHINESE).catch(()=>({text:''} as any)),
+      TextRecognition.recognize(uri,TextRecognitionScript.KOREAN).catch(()=>({text:''} as any))
+    ]);
+    const extras=scriptResults.map(x=>x.text||'').filter(x=>x.trim().length>0);
+    if(extras.length)text=[text,...extras].filter(Boolean).join('\n');
+  }
   const numbers=extractNumbers(text);
   const detected=game==='pokemon'?detectLanguageCode(text):undefined;
   const queries=buildQueries(text);
