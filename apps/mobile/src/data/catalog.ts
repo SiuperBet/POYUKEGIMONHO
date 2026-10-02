@@ -8,6 +8,7 @@ export type CatalogCard={
   id:string; game:Game; name:string; setId?:string; setName?:string; number?:string;
   rarity?:string; image?:string; priceEUR?:number; priceUSD?:number; trend7EUR?:number; trend30EUR?:number; updatedAt?:string; releaseDate?:string;
   variantId?:string; variantLabel?:string; printingId?:string; language?:PokemonLanguage|string; sourceId?:string;
+  artist?:string; types?:string[]; dexId?:number|string;
 };
 export type CatalogSet={
   id:string;game:Game;name:string;code?:string;cardCount?:number;releaseDate?:string;logo?:string;symbol?:string;
@@ -192,7 +193,7 @@ export async function getYugiohSetCards(setName:string):Promise<CatalogCard[]>{
           const printingId=String(match.set_code||match.set_rarity||match.set_name);
           out.push({
             id:String(c.id)+'::'+printingId,printingId,variantId:printingId,variantLabel:String(match.set_rarity||printingId),
-            game:'yugioh',name:c.name,setName,number:match.set_code,rarity:match.set_rarity,
+            game:'yugioh',name:c.name,setName,number:match.set_code,rarity:match.set_rarity,types:c.type?[c.type]:undefined,
             image:c.card_images?.[0]?.image_url_small||c.card_images?.[0]?.image_url,
             priceEUR:priceFromYgo(c),priceUSD:Number(match.set_price)||undefined
           });
