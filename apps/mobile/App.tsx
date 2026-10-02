@@ -271,7 +271,7 @@ export default function App(){
           <Text style={styles.collectionCount}>{collapsed?'APRI':'CHIUDI'}</Text>
         </TouchableOpacity>
         {!collapsed&&(collectionView==='grid'?<View style={styles.binderGrid}>{g.cards.map(c=>renderCard(c,true))}</View>:<View style={styles.marketList}>{g.cards.map(c=>{
-          const owned=ownedQty(c.id)>0;const item=collection.find(x=>x.id===c.id);
+          const owned=ownedQty(c.id)>0;const item=collection.find(x=>x.id===c.id||x.id.startsWith(c.id+'::'));
           return <TouchableOpacity key={c.id} activeOpacity={0.85} onPress={()=>item&&openCollectionDetail(item)} style={styles.marketListCard}>{c.image?<Image source={{uri:c.image}} style={styles.marketListImage} resizeMode="contain"/>:<View style={styles.marketListImage}><Text style={styles.imageFallback}>{c.name.slice(0,1)}</Text></View>}<View style={styles.flex}><Text style={styles.cardName}>{c.name}</Text><Text style={styles.muted}>{c.number||'—'}{c.variantLabel?' · '+c.variantLabel:''} · {item?.condition||'Mancante'} · x{item?.quantity||0}</Text><Text style={styles.price}>{money(c.priceEUR)}</Text></View>{owned&&<Text style={styles.ownedBadgeText}>✓</Text>}</TouchableOpacity>
         })}</View>)}
       </View>
