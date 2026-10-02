@@ -4,9 +4,10 @@ import type {CatalogCard} from './catalog';
 export type Condition='Mint'|'NM'|'Excellent'|'Good'|'Played'|'Poor'|'Damaged';
 export const CONDITION_FACTORS:Record<Condition,number>={Mint:1,NM:0.95,Excellent:0.65,Good:0.41,Played:0.22,Poor:0.17,Damaged:0.10};
 export const CONDITIONS:Condition[]=['Mint','NM','Excellent','Good','Played','Poor','Damaged'];
-export type CollectionItem=CatalogCard & {quantity:number;condition:Condition;addedAt:string;backImage?:string;};
+export type VisualAnalysisSnapshot={condition:Condition;score:number;confidence:number;frontQuality:number;backQuality?:number;defects:Array<{type:string;severity:string;score:number;confidence:number}>;hasBack:boolean;engine:string;notes:string[]};
+export type CollectionItem=CatalogCard & {quantity:number;condition:Condition;addedAt:string;backImage?:string;visualAnalysis?:VisualAnalysisSnapshot;};
 export function estimateCardValueEUR(priceEUR:number|undefined,condition:Condition='NM'){return Number.isFinite(priceEUR)&&Number(priceEUR)>0?Number(priceEUR)*CONDITION_FACTORS[condition]:0;}
-export type GradedItem={id:string;image?:string;backImage?:string;grade:string;score:number;confidence:number;addedAt:string;notes:string[];condition?:Condition;card?:CatalogCard;visualAnalysis?:{condition:Condition;score:number;confidence:number;frontQuality:number;backQuality?:number;defects:Array<{type:string;severity:string;score:number;confidence:number}>;hasBack:boolean;engine:string;notes:string[]};};
+export type GradedItem={id:string;image?:string;backImage?:string;grade:string;score:number;confidence:number;addedAt:string;notes:string[];condition?:Condition;card?:CatalogCard;visualAnalysis?:VisualAnalysisSnapshot;};
 
 const COLLECTION='poyukegimonho:mobile:collection:v1';
 const GRADED='poyukegimonho:mobile:graded:v1';
@@ -16,11 +17,11 @@ export const loadCollection=()=>read<CollectionItem[]>(COLLECTION,[]);
 export const loadGraded=()=>read<GradedItem[]>(GRADED,[]);
 export async function saveCollection(items:CollectionItem[]){await AsyncStorage.setItem(COLLECTION,JSON.stringify(items))}
 export async function saveGraded(items:GradedItem[]){await AsyncStorage.setItem(GRADED,JSON.stringify(items))}
-export async function addToCollection(card:CatalogCard,condition:Condition='NM',quantity=1,scanImage?:string,backImage?:string){
+export async function addToCollection(card:CatalogCard,condition:Condition='NM',quantity=1,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysisSnapshot){
   const items=await loadCollection();
   const index=items.findIndex(x=>x.id===card.id&&x.condition===condition);
-  if(index>=0)items[index]={...items[index],quantity:items[index].quantity+quantity,image:scanImage||items[index].image,backImage:backImage||items[index].backImage};
-  else items.unshift({...card,quantity,condition,addedAt:new Date().toISOString(),image:scanImage||card.image,backImage});
+  if(index>=0)items[index]={...items[index],quantity:items[index].quantity+quantity,image:scanImage||items[index].image,backImage:backImage||items[index].backImage,visualAnalysis:visualAnalysis||items[index].visualAnalysis};
+  else items.unshift({...card,quantity,condition,addedAt:new Date().toISOString(),image:scanImage||card.image,backImage,visualAnalysis});
   await saveCollection(items); return items;
 }
 export async function addGraded(item:GradedItem){const items=await loadGraded();items.unshift(item);await saveGraded(items);return items}
