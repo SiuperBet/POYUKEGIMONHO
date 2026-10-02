@@ -3,6 +3,7 @@ import {StyleSheet,Text,TouchableOpacity,View,Image} from 'react-native';
 import {DeviceMotion} from 'expo-sensors';
 import {Camera,useCameraDevice,useCameraPermission} from 'react-native-vision-camera';
 import * as Haptics from 'expo-haptics';
+import DocumentScanner from 'react-native-document-scanner-plugin';
 
 type MotionState={available:boolean;roll:number;movement:number};
 
@@ -18,6 +19,7 @@ export function ScannerScreen(){
   const [motion,setMotion]=useState<MotionState>({available:false,roll:0,movement:0});
   const [lastPhoto,setLastPhoto]=useState<string|null>(null);
   const [confirmed,setConfirmed]=useState(false);
+  const [scannerOpen,setScannerOpen]=useState(false);
 
   useEffect(()=>{if(!hasPermission)void requestPermission()},[hasPermission,requestPermission]);
 
@@ -59,11 +61,28 @@ export function ScannerScreen(){
   };
 
   const retry=()=>{setLastPhoto(null);setConfirmed(false);setMessage('Inquadra una carta')};
+
+  const smartScan=async()=>{
+    if(scannerOpen)return;
+    setScannerOpen(true);setMessage('Rilevamento bordi…');
+    try{
+      const result=await DocumentScanner.scanDocument({maxNumDocuments:1,letUserAdjustCrop:true});
+      const scanned=result.scannedImages?.[0];
+      if(scanned){
+        const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
+        setLastPhoto(uri);setConfirmed(true);setMessage('Carta rilevata e ritagliata');
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }else setMessage('Nessuna carta acquisita');
+    }catch(error){
+      const text=String(error??'').toLowerCase();
+      setMessage(text.includes('cancel')?'Scansione annullata':'Scanner automatico non disponibile');
+    }finally{setScannerOpen(false)}
+  };
   const confirm=()=>{setConfirmed(true);setMessage('Acquisita • pronta per detection → crop → recognition')};
   const actualZoom=device.minZoom+(device.maxZoom-device.minZoom)*zoom;
 
   return <View style={styles.root}>
-    <Camera ref={camera} style={StyleSheet.absoluteFill} device={device} isActive photo photoQualityBalance="quality" torch={torch?'on':'off'} zoom={actualZoom} onInitialized={()=>setReady(true)}/>
+    <Camera ref={camera} style={StyleSheet.absoluteFill} device={device} isActive={!scannerOpen&&!lastPhoto} photo photoQualityBalance="quality" torch={torch?'on':'off'} zoom={actualZoom} onInitialized={()=>setReady(true)}/>
     <View style={styles.scrim}/>
     <View style={styles.top}>
       <View style={styles.pill}><Text style={styles.pillText}>{ready?'● Camera pronta':'● Avvio camera'}</Text></View>
@@ -84,6 +103,7 @@ export function ScannerScreen(){
         </View>
       </View>
     </View>}
+    <TouchableOpacity style={styles.smartButton} onPress={()=>void smartScan()} disabled={scannerOpen||!!lastPhoto}><Text style={styles.smartText}>{scannerOpen?'RILEVAMENTO…':'RILEVA BORDI AUTOMATICAMENTE'}</Text></TouchableOpacity>
     <View style={styles.bottom}>
       <TouchableOpacity style={styles.side} onPress={()=>setTorch(v=>!v)}><Text style={styles.sideText}>{torch?'☀︎':'☼'}{String.fromCharCode(10)}LUCE</Text></TouchableOpacity>
       <TouchableOpacity accessibilityLabel="Scatta" disabled={processing||!!lastPhoto} style={[styles.shutter,(processing||lastPhoto)&&styles.disabled]} onPress={capture}><View style={styles.shutterInner}/></TouchableOpacity>
@@ -102,6 +122,7 @@ const styles=StyleSheet.create({
   corner:{position:'absolute',width:30,height:30},tl:{left:-2,top:-2,borderLeftWidth:4,borderTopWidth:4,borderTopLeftRadius:10},tr:{right:-2,top:-2,borderRightWidth:4,borderTopWidth:4,borderTopRightRadius:10},br:{right:-2,bottom:-2,borderRightWidth:4,borderBottomWidth:4,borderBottomRightRadius:10},bl:{left:-2,bottom:-2,borderLeftWidth:4,borderBottomWidth:4,borderBottomLeftRadius:10},
   hint:{marginBottom:16,color:'#fff',fontWeight:'800',fontSize:13,backgroundColor:'rgba(8,10,13,.72)',paddingHorizontal:12,paddingVertical:8,borderRadius:99},
   review:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(5,6,8,.94)',paddingTop:92,paddingHorizontal:18,paddingBottom:150},reviewImage:{flex:1,width:'100%',borderRadius:18},reviewPanel:{marginTop:12,padding:16,borderRadius:18,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},reviewTitle:{color:'#f5f7fa',fontSize:18,fontWeight:'800'},reviewCopy:{color:'#9aa3af',fontSize:13,lineHeight:19,marginTop:6},reviewActions:{flexDirection:'row',gap:10,marginTop:14},
+  smartButton:{position:'absolute',left:24,right:24,bottom:122,height:46,borderRadius:14,backgroundColor:'#b8ff5a',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#d8ff9c'},smartText:{color:'#10130c',fontWeight:'900',fontSize:12,letterSpacing:.4},
   bottom:{position:'absolute',left:0,right:0,bottom:38,flexDirection:'row',alignItems:'center',justifyContent:'space-evenly'},side:{width:72,height:58,alignItems:'center',justifyContent:'center'},sideText:{color:'#fff',fontSize:11,fontWeight:'800',textAlign:'center',lineHeight:17},
   shutter:{width:78,height:78,borderRadius:39,borderWidth:5,borderColor:'#fff',backgroundColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},shutterInner:{width:60,height:60,borderRadius:30,borderWidth:2,borderColor:'#10130c'},disabled:{opacity:.55}
 });
