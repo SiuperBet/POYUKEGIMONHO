@@ -48,7 +48,7 @@ const pokemonImage=(language:PokemonLanguage,setId:string,seriesId:string|undefi
   'https://assets.tcgdex.net/'+encodeURIComponent(language)+'/'+encodeURIComponent(seriesId||setId)+'/'+encodeURIComponent(setId)+'/'+encodeURIComponent(localId)+'/'+quality+'.webp';
 const pokemonCardId=(language:PokemonLanguage,rawId:string)=>language==='en'?rawId:language+'::'+rawId;
 
-async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)=>Promise<R>):Promise<R[]>{
+export async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)=>Promise<R>):Promise<R[]>{
   const out:R[]=[];let cursor=0;
   const worker=async()=>{while(true){const i=cursor++;if(i>=items.length)return;try{out[i]=await fn(items[i])}catch{out[i]=undefined as R}}};
   await Promise.all(Array.from({length:Math.min(limit,Math.max(1,items.length))},()=>worker()));
@@ -58,7 +58,7 @@ async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)=>Promi
 export async function getSets(game:Game):Promise<CatalogSet[]>{
   if(game==='pokemon'){
     return cacheNonEmpty('catalog:pokemon:sets:v6',async()=>{
-      const localeResults=await Promise.all(POKEMON_LANGUAGES.map(async(language)=>{
+      const localeResults=await mapWithConcurrency(POKEMON_LANGUAGES,4,async(language)=>{
         try{
           const sets=await getJson<any[]>('https://api.tcgdex.net/v2/'+language+'/sets');
           return sets.map((set:any)=>({
@@ -68,7 +68,7 @@ export async function getSets(game:Game):Promise<CatalogSet[]>{
             seriesId:language==='en'?undefined:language,seriesName:language==='en'?'Pokémon · English':'Pokémon · '+POKEMON_LANGUAGE_LABEL[language]
           } as CatalogSet));
         }catch{return [] as CatalogSet[]}
-      }));
+      });
       return localeResults.flat().filter(s=>s.cardCount!==0).filter((s,i,a)=>a.findIndex(x=>x.id===s.id)===i);
     });
   }
@@ -348,7 +348,7 @@ export async function searchCards(game:Game,query:string,language?:PokemonLangua
       if(number)requests.push({lang,promise:getJson<any[]>('https://api.tcgdex.net/v2/'+lang+'/cards?localId='+encodeURIComponent(number)).catch(()=>[] as any[])});
       requests.push({lang,promise:getJson<any[]>('https://api.tcgdex.net/v2/'+lang+'/cards?id='+encodeURIComponent(q)).catch(()=>[] as any[])});
     }
-    const rawResults=await Promise.all(requests.map(x=>x.promise));
+    const rawResults=await mapWithConcurrency(requests,8,x=>x.promise);
     const raw=requests.flatMap((x,i)=>rawResults[i].map(c=>({...c,__lang:x.lang})));
     const seen=new Set<string>();
     const merged=raw.filter(c=>{const rawId=String(c?.id||'');const id=String(c.__lang)+'::'+rawId;if(!rawId||seen.has(id))return false;seen.add(id);return true});
