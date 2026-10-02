@@ -1,11 +1,12 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as RNImage} from 'react-native';
 import type {CatalogCard} from '../data/catalog';
+import {CONDITIONS,Condition,estimateCardValueEUR} from '../data/store';
 import {recognizeCardImage,RecognitionResult} from '../data/recognition';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
-type Props={onCaptured?:(uri:string,card?:CatalogCard)=>void;onSaveCollection?:(card:CatalogCard)=>void};
+type Props={onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onSaveCollection?:(card:CatalogCard,condition:Condition)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void};
 
 export function ScannerScreen({onCaptured,onSaveCollection}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
@@ -13,6 +14,9 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
   const [message,setMessage]=useState('Premi SCANSIONE: il telefono rileverà automaticamente i 4 bordi.');
   const [error,setError]=useState<string|null>(null);
   const [recognition,setRecognition]=useState<RecognitionResult|null>(null);
+  const [selectedCondition,setSelectedCondition]=useState<Condition>('NM');
+  const [collectionSaved,setCollectionSaved]=useState(false);
+  const [gradedId,setGradedId]=useState<string|undefined>();
   const [scanGeometry,setScanGeometry]=useState<{width:number;height:number;aspect:number;ok:boolean}|null>(null);
   const launched=useRef(false);
 
@@ -37,7 +41,9 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
         const identified=await recognizeCardImage(uri,'pokemon').catch(()=>null);
         setRecognition(identified);
         setMessage(identified?.card?'Carta riconosciuta automaticamente.':'Carta acquisita: riconoscimento da verificare.');
-        onCaptured?.(uri,identified?.card||undefined);
+        const savedId=await onCaptured?.(uri,identified?.card||undefined);
+        setGradedId(savedId);
+        setCollectionSaved(false);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }else{
         setMessage('Nessuna carta acquisita.');
@@ -60,8 +66,10 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
     }
   },[]);
 
-  const retry=()=>{setLastPhoto(null);setRecognition(null);setScanGeometry(null);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
-  const rescan=()=>{setLastPhoto(null);setRecognition(null);setScanGeometry(null);void smartScan();};
+  const chooseCondition=async(condition:Condition)=>{setSelectedCondition(condition);if(gradedId)await onConditionSelected?.(gradedId,condition);setCollectionSaved(false)};
+  const saveCollection=async()=>{if(!recognition?.card||!onSaveCollection)return;await onSaveCollection(recognition.card,selectedCondition);if(gradedId)await onConditionSelected?.(gradedId,selectedCondition);setCollectionSaved(true);setMessage('Carta salvata nella collezione con la condizione selezionata.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)};
+  const retry=()=>{setLastPhoto(null);setRecognition(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
+  const rescan=()=>{setLastPhoto(null);setRecognition(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);void smartScan();};
 
   return <View style={styles.root}>
     <View style={styles.header}>
@@ -97,12 +105,12 @@ export function ScannerScreen({onCaptured,onSaveCollection}:Props){
       <View style={styles.edgeVerified}><View style={styles.edgeDot}/><View style={styles.flex}><Text style={styles.edgeTitle}>BORDO CARTA VERIFICATO</Text><Text style={styles.edgeCopy}>{scanGeometry?.ok?'4 lati • 4 angoli • proporzione corretta':'Proporzione da verificare prima del salvataggio'}</Text></View><Text style={styles.edgeCheck}>✓</Text></View>
       {recognition?.card&&<View style={styles.recognitionBox}><Text style={styles.resultTitle}>Riconoscimento</Text><Text style={styles.recognizedName}>{recognition.card.name}</Text><Text style={styles.resultCopy}>{recognition.card.setName||'Set non identificato'}{recognition.card.number?' · '+recognition.card.number:''}{recognition.language?' · '+recognition.language:''}</Text><Text style={styles.confidence}>Confidenza {Math.round(recognition.confidence*100)}%</Text></View>}
       <Text style={styles.resultTitle}>Carta acquisita e raddrizzata</Text>
-      <Text style={styles.resultCopy}>Questa immagine è il risultato del crop/perspective correction dello scanner nativo ed entra nel pipeline di POYUKEGIMONHO.</Text>
+      <Text style={styles.resultCopy}>Questa immagine è il risultato del crop/perspective correction dello scanner nativo ed entra nel pipeline di POYUKEGIMONHO.</Text>\n      {recognition?.card&&<View style={styles.conditionBox}><Text style={styles.conditionTitle}>CONDIZIONE DELLA CARTA</Text><View style={styles.conditionRow}>{CONDITIONS.map(c=><TouchableOpacity key={c} onPress={()=>void chooseCondition(c)} style={selectedCondition===c?styles.conditionOn:styles.conditionOff}><Text style={selectedCondition===c?styles.conditionOnText:styles.conditionOffText}>{c}</Text></TouchableOpacity>)}</View><View style={styles.valueRow}><Text style={styles.valueLabel}>VALORE STIMATO ({selectedCondition})</Text><Text style={styles.valueText}>{estimateCardValueEUR(recognition.card.priceEUR,selectedCondition)>0?'€ '+estimateCardValueEUR(recognition.card.priceEUR,selectedCondition).toFixed(2):'—'}</Text></View></View>}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.secondary} onPress={retry}><Text style={styles.secondaryText}>Riprova</Text></TouchableOpacity>
         <TouchableOpacity style={styles.primary} onPress={rescan}><Text style={styles.primaryText}>Nuova scansione</Text></TouchableOpacity>
       </View>
-      {recognition?.card&&onSaveCollection&&<TouchableOpacity style={styles.collectionButton} onPress={()=>onSaveCollection(recognition.card!)}><Text style={styles.collectionButtonText}>AGGIUNGI ALLA COLLEZIONE</Text></TouchableOpacity>}
+      {recognition?.card&&onSaveCollection&&<TouchableOpacity style={[styles.collectionButton,collectionSaved&&styles.collectionSaved]} onPress={()=>void saveCollection()} disabled={collectionSaved}><Text style={styles.collectionButtonText}>{collectionSaved?'✓ IN COLLEZIONE':'SALVA IN COLLEZIONE'}</Text></TouchableOpacity>}
     </View>}
 
     {!lastPhoto&&<TouchableOpacity style={styles.scanButton} onPress={()=>void smartScan()} disabled={scannerOpen}>
@@ -138,9 +146,10 @@ const styles=StyleSheet.create({
   scanButton:{marginTop:14,backgroundColor:'#b8ff5a',borderRadius:16,paddingVertical:15,alignItems:'center',borderWidth:1,borderColor:'#d8ff9c'},
   scanButtonText:{color:'#10130c',fontSize:16,fontWeight:'900'},scanButtonSub:{color:'#263018',fontSize:9,fontWeight:'900',letterSpacing:1,marginTop:3},
   resultPanel:{marginTop:12,padding:15,borderRadius:17,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},
+  conditionBox:{marginTop:12,padding:12,borderRadius:14,backgroundColor:'#0d1014',borderWidth:1,borderColor:'#303640'},conditionTitle:{color:'#f5f7fa',fontSize:11,fontWeight:'900'},conditionRow:{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:9},conditionOn:{backgroundColor:'#b8ff5a',paddingHorizontal:10,paddingVertical:8,borderRadius:10},conditionOff:{backgroundColor:'#20252d',paddingHorizontal:10,paddingVertical:8,borderRadius:10},conditionOnText:{color:'#10130c',fontSize:11,fontWeight:'900'},conditionOffText:{color:'#f5f7fa',fontSize:11,fontWeight:'800'},valueRow:{marginTop:11,paddingTop:10,borderTopWidth:1,borderTopColor:'#2a3038',flexDirection:'row',justifyContent:'space-between',alignItems:'center'},valueLabel:{color:'#9aa3af',fontSize:10,fontWeight:'900'},valueText:{color:'#b8ff5a',fontSize:20,fontWeight:'900'},
   recognitionBox:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#0d1510',borderWidth:1,borderColor:'#426b27'},recognizedName:{color:'#b8ff5a',fontSize:20,fontWeight:'900',marginTop:4},confidence:{color:'#d8ff9c',fontSize:11,fontWeight:'800',marginTop:6},
   resultTitle:{color:'#f5f7fa',fontSize:17,fontWeight:'900'},resultCopy:{color:'#9aa3af',fontSize:12,lineHeight:18,marginTop:6},
-  actions:{flexDirection:'row',gap:9,marginTop:13},primary:{flex:1,backgroundColor:'#b8ff5a',paddingVertical:12,borderRadius:12,alignItems:'center'},primaryText:{color:'#10130c',fontWeight:'900',fontSize:12},secondary:{flex:1,backgroundColor:'#20252d',paddingVertical:12,borderRadius:12,alignItems:'center'},secondaryText:{color:'#f5f7fa',fontWeight:'900',fontSize:12},collectionButton:{marginTop:10,backgroundColor:'#20252d',paddingVertical:13,borderRadius:12,alignItems:'center',borderWidth:1,borderColor:'#b8ff5a'},collectionButtonText:{color:'#b8ff5a',fontWeight:'900',fontSize:12},
+  actions:{flexDirection:'row',gap:9,marginTop:13},primary:{flex:1,backgroundColor:'#b8ff5a',paddingVertical:12,borderRadius:12,alignItems:'center'},primaryText:{color:'#10130c',fontWeight:'900',fontSize:12},secondary:{flex:1,backgroundColor:'#20252d',paddingVertical:12,borderRadius:12,alignItems:'center'},secondaryText:{color:'#f5f7fa',fontWeight:'900',fontSize:12},collectionButton:{marginTop:10,backgroundColor:'#20252d',paddingVertical:13,borderRadius:12,alignItems:'center',borderWidth:1,borderColor:'#b8ff5a'},collectionButtonText:{color:'#b8ff5a',fontWeight:'900',fontSize:12},collectionSaved:{backgroundColor:'#173016',borderColor:'#426b27'},
   flex:{flex:1},edgeVerified:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#0d1510',borderWidth:1,borderColor:'#426b27',flexDirection:'row',alignItems:'center',gap:10},edgeDot:{width:10,height:10,borderRadius:5,backgroundColor:'#b8ff5a'},edgeTitle:{color:'#b8ff5a',fontSize:11,fontWeight:'900'},edgeCopy:{color:'#d8ff9c',fontSize:10,marginTop:3},edgeCheck:{color:'#b8ff5a',fontSize:22,fontWeight:'900'},
   error:{marginTop:10,padding:11,borderRadius:12,backgroundColor:'#2a1518',borderWidth:1,borderColor:'#5a252b'},errorText:{color:'#ff9b9b',fontSize:11},
   infoRow:{flexDirection:'row',gap:8,marginTop:12},info:{flex:1,padding:11,borderRadius:13,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},infoTitle:{color:'#b8ff5a',fontSize:10,fontWeight:'900'},infoCopy:{color:'#9aa3af',fontSize:9,marginTop:3,lineHeight:13}
