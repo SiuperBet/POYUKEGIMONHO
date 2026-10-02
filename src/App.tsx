@@ -153,46 +153,6 @@ useEffect(()=>{saveGradingScans(gradingScans)},[gradingScans]);
   img.src=url;
  }
 
- function snapCorner(index:number,x:number,y:number){
-  const c=sourceCanvas();if(!c)return {x,y};
-  const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return {x,y};
-  const data=ctx.getImageData(0,0,c.width,c.height).data,px=x/100*c.width,py=y/100*c.height;
-  const lum=(xx:number,yy:number)=>{xx=Math.max(1,Math.min(c.width-2,Math.round(xx)));yy=Math.max(1,Math.min(c.height-2,Math.round(yy)));const i=(yy*c.width+xx)*4;return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2]};
-  const edgeX=(xx:number,yy:number)=>Math.abs(lum(xx-2,yy)-lum(xx+2,yy)),edgeY=(xx:number,yy:number)=>Math.abs(lum(xx,yy-2)-lum(xx,yy+2));
-  const radius=26,step=3;
-  let best={x:px,y:py,score:0};
-  for(let dy=-radius;dy<=radius;dy+=step)for(let dx=-radius;dx<=radius;dx+=step){
-   const xx=px+dx,yy=py+dy;let score=edgeX(xx,yy)+edgeY(xx,yy);
-   for(let k=-55;k<=55;k+=5){score+=index<2?edgeX(xx,yy+k)*.7:edgeX(xx,yy+k)*.7;score+=index===0||index===3?edgeY(xx+k,yy)*.7:edgeY(xx+k,yy)*.7}
-   if(score>best.score)best={x:xx,y:yy,score};
-  }
-  const threshold=Math.max(95,(c.width+c.height)*.055);
-  return best.score>threshold?{x:best.x/c.width*100,y:best.y/c.height*100}:{x,y};
- }
-
- function snapSide(side:'top'|'right'|'bottom'|'left',fallback:Point[]){
- const c=sourceCanvas();if(!c)return fallback;
- const frame=c.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,c.width,c.height);if(!frame)return fallback;
- const detected=detectCardQuad(frame);if(!detected||detected.confidence<.76)return fallback;
- const p=detected.points;
- const cx=p.reduce((s,q)=>s+q.x,0)/4,cy=p.reduce((s,q)=>s+q.y,0)/4;
- const fx=fallback.reduce((s,q)=>s+q.x,0)/4,fy=fallback.reduce((s,q)=>s+q.y,0)/4;
- if(Math.hypot(cx-fx,cy-fy)>14)return fallback;
- return fallback.map((point,i)=>side==='top'&&i<2?p[i]:side==='right'&&(i===1||i===2)?p[i]:side==='bottom'&&i>1?p[i]:side==='left'&&(i===0||i===3)?p[i]:point);
-}
-function moveSide(side:'top'|'right'|'bottom'|'left',e:ReactPointerEvent<HTMLButtonElement>){
- const r=e.currentTarget.parentElement?.getBoundingClientRect();if(!r)return;
- const value=side==='top'||side==='bottom'?(e.clientY-r.top)/r.height*100:(e.clientX-r.left)/r.width*100;
- setCorners(old=>{const next=old.map(p=>({...p}));if(side==='top'||side==='bottom'){const ids=side==='top'?[0,1]:[2,3],avg=ids.reduce((n,i)=>n+old[i].y,0)/2,dy=clamp(value,3,97)-avg;ids.forEach(i=>next[i].y=clamp(old[i].y+dy,2,98));}else{const ids=side==='right'?[1,2]:[0,3],avg=ids.reduce((n,i)=>n+old[i].x,0)/2,dx=clamp(value,3,97)-avg;ids.forEach(i=>next[i].x=clamp(old[i].x+dx,2,98));}return next});
-}
-function alignSide(side:'top'|'right'|'bottom'|'left'){void side;}
-function saveGrading(){if(!grade)return;setGradingScans(old=>[{id:crypto.randomUUID(),grade,image:previewData||undefined,addedAt:new Date().toISOString()},...old]);setError('');}
-function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
-  const r=e.currentTarget.parentElement?.getBoundingClientRect();if(!r)return;
-  const rawX=clamp((e.clientX-r.left)/r.width*100,2,98),rawY=clamp((e.clientY-r.top)/r.height*100,2,98);
-  setCorners(old=>old.map((p,i)=>i===index?{x:rawX,y:rawY}:p));
- }
-
  useEffect(()=>{
   if(!cameraOn||!auto)return;
   autoTimer.current=window.setInterval(()=>{
