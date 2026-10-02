@@ -16,16 +16,12 @@
     },
     "android": {
       "package": "com.siuperbet.poyukegimonho",
-      "permissions": [
-        "CAMERA",
-        "VIBRATE",
-        "REQUEST_INSTALL_PACKAGES"
-      ]
+      "permissions": ["CAMERA", "VIBRATE", "REQUEST_INSTALL_PACKAGES"]
     },
     "plugins": [
       ["react-native-document-scanner-plugin", {
         "cameraPermission": "Consenti alla scansione delle carte."
       }]
-
+    ]
   }
 }
