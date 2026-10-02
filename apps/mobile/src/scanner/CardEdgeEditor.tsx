@@ -5,7 +5,6 @@ import {SaveFormat} from 'expo-image-manipulator';
 
 type Props={uri:string;onCancel:()=>void;onConfirm:(uri:string)=>void|Promise<void>};
 type Crop={left:number;top:number;right:number;bottom:number};
-const pct=(n:number):`${number}%`=>(n*100).toFixed(2)+'%' as `${number}%`;
 
 export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
   const [crop,setCrop]=useState<Crop>({left:.012,top:.012,right:.988,bottom:.988});
@@ -51,11 +50,11 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
     <Text style={styles.hint}>Trascina direttamente il lato che vuoi correggere. Il lato resta dritto e si aggancia a piccoli incrementi per evitare micro-movimenti.</Text>
     <View style={styles.canvas} onLayout={layout}>
       <Image source={{uri}} style={styles.image} resizeMode="contain"/>
-      <View pointerEvents="none" style={[styles.crop,{left:pct(crop.left),right:pct(1-crop.right),top:pct(crop.top),bottom:pct(1-crop.bottom)}]}/>
-      <View {...pan.top.panHandlers} style={[styles.sideHandle,styles.top,{left:pct(crop.left),right:pct(1-crop.right),top:pct(crop.top)}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
-      <View {...pan.bottom.panHandlers} style={[styles.sideHandle,styles.bottom,{left:pct(crop.left),right:pct(1-crop.right),bottom:pct(1-crop.bottom)}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
-      <View {...pan.left.panHandlers} style={[styles.sideHandle,styles.left,{top:pct(crop.top),bottom:pct(1-crop.bottom),left:pct(crop.left)}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
-      <View {...pan.right.panHandlers} style={[styles.sideHandle,styles.right,{top:pct(crop.top),bottom:pct(1-crop.bottom),right:pct(1-crop.right)}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
+      <View pointerEvents="none" style={[styles.crop,{left:crop.left*box.width,right:(1-crop.right)*box.width,top:crop.top*box.height,bottom:(1-crop.bottom)*box.height}]}/>
+      <View {...pan.top.panHandlers} style={[styles.sideHandle,styles.top,{left:crop.left*box.width,right:(1-crop.right)*box.width,top:crop.top*box.height}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
+      <View {...pan.bottom.panHandlers} style={[styles.sideHandle,styles.bottom,{left:crop.left*box.width,right:(1-crop.right)*box.width,bottom:(1-crop.bottom)*box.height}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
+      <View {...pan.left.panHandlers} style={[styles.sideHandle,styles.left,{top:crop.top*box.height,bottom:(1-crop.bottom)*box.height,left:crop.left*box.width}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
+      <View {...pan.right.panHandlers} style={[styles.sideHandle,styles.right,{top:crop.top*box.height,bottom:(1-crop.bottom)*box.height,right:(1-crop.right)*box.width}]}><View style={styles.handleLine}/><Text style={styles.handleLabel}>LATO</Text></View>
     </View>
     <View style={styles.row}>
       <TouchableOpacity style={styles.secondary} onPress={onCancel} disabled={working}><Text style={styles.secondaryText}>ANNULLA</Text></TouchableOpacity>
