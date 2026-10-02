@@ -153,6 +153,13 @@ useEffect(()=>{saveGradingScans(gradingScans)},[gradingScans]);
   img.src=url;
  }
 
+ function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
+  const r=e.currentTarget.parentElement?.getBoundingClientRect();if(!r)return;
+  const rawX=clamp((e.clientX-r.left)/r.width*100,2,98),rawY=clamp((e.clientY-r.top)/r.height*100,2,98);
+  setCorners(old=>old.map((p,i)=>i===index?{x:rawX,y:rawY}:p));
+ }
+ function saveGrading(){if(!grade)return;setGradingScans(old=>[{id:crypto.randomUUID(),grade,image:previewData||undefined,addedAt:new Date().toISOString()},...old]);setError('');}
+
  useEffect(()=>{
   if(!cameraOn||!auto)return;
   autoTimer.current=window.setInterval(()=>{
