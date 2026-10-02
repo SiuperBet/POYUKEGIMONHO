@@ -32,7 +32,7 @@ export default function App(){
   const refreshCollection=async()=>setCollection(await loadCollection());
   const addCard=async(card:CatalogCard)=>{await addToCollection(card,condition,1);await refreshCollection()};
   const openSet=async(s:CatalogSet)=>{setSelectedSet(s);setLoading(true);try{setCards(s.game==='pokemon'?await getPokemonSetCards(s.id):await getYugiohSetCards(s.name))}catch{setCards([])}finally{setLoading(false)}};
-  const captureSaved=async(uri:string)=>{const item:GradedItem={id:Date.now().toString(),image:uri,grade:'Da valutare',score:0,confidence:0,addedAt:new Date().toISOString(),notes:[]};const next=await addGraded(item);setGraded(next);setTab('graded')};
+  const captureSaved=async(uri:string)=>{const item:GradedItem={id:Date.now().toString(),image:uri,grade:'Da valutare',score:0,confidence:0,addedAt:new Date().toISOString(),notes:[]};const next=await addGraded(item);setGraded(next);};
   const setGrade=async(item:GradedItem,grade:string)=>{const score={Mint:99,NM:95,Excellent:88,Good:76,Played:58,Poor:35,Damaged:15}[grade]||0;const next=graded.map(x=>x.id===item.id?{...x,grade,score,confidence:1}:x);setGraded(next);await saveGraded(next)};
 
   const renderCard=(c:CatalogCard)=><View key={c.id} style={styles.cardRow}>
