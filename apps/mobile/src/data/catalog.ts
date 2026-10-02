@@ -52,7 +52,7 @@ async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)=>Promi
 
 export async function getSets(game:Game):Promise<CatalogSet[]>{
   if(game==='pokemon'){
-    return cache('catalog:pokemon:sets:v4',async()=>{
+    return cacheNonEmpty('catalog:pokemon:sets:v5',async()=>{
       const [sets,series]=await Promise.all([
         getJson<any[]>('https://api.tcgdex.net/v2/en/sets'),
         getJson<any[]>('https://api.tcgdex.net/v2/en/series')
@@ -70,7 +70,7 @@ export async function getSets(game:Game):Promise<CatalogSet[]>{
       return detailed.filter(Boolean);
     });
   }
-  return cache('catalog:yugioh:sets:v3',async()=>{
+  return cacheNonEmpty('catalog:yugioh:sets:v4',async()=>{
     const data=await getJson<any[]>('https://db.ygoprodeck.com/api/v7/cardsets.php');
     return data.map(s=>({
       id:s.set_code||s.set_name,game:'yugioh' as const,name:s.set_name,code:s.set_code,
@@ -91,7 +91,7 @@ export async function hydrateSetDates(game:Game,sets:CatalogSet[]):Promise<Catal
   });
   const byId=new Map(details.map(s=>[s.id,s]));
   const hydrated=sets.map(s=>byId.get(s.id)||s);
-  void AsyncStorage.setItem('catalog:pokemon:sets:v4',JSON.stringify(hydrated));
+  void AsyncStorage.setItem('catalog:pokemon:sets:v5',JSON.stringify(hydrated));
   return hydrated;
 }
 
@@ -173,30 +173,40 @@ export async function getYugiohSetCards(setName:string):Promise<CatalogCard[]>{
 export async function searchCards(game:Game,query:string):Promise<CatalogCard[]>{
   const q=query.trim();
   if(!q)return [];
+  const tokens=[...new Set(q.split(/\\s+/).map(x=>x.trim()).filter(x=>x.length>=2))];
   if(game==='pokemon'){
-    const requests=[
-      getJson<any[]>('https://api.tcgdex.net/v2/en/cards?name='+encodeURIComponent(q)),
-      getJson<any[]>('https://api.tcgdex.net/v2/en/cards?localId='+encodeURIComponent(q))
-    ];
-    const [byName,byNumber]=await Promise.all(requests.map(p=>p.catch(()=>[] as any[])));
-    const merged=[...byName,...byNumber];
+    const textTokens=tokens.filter(x=>!/^H?\\d+[A-Za-z]*$/i.test(x));
+    const numberTokens=tokens.filter(x=>/^H?\\d+[A-Za-z]*$/i.test(x)||/\\d/.test(x));
+    const requests:string[]=[];
+    for(const token of textTokens.slice(0,3))requests.push('https://api.tcgdex.net/v2/en/cards?name='+encodeURIComponent('like:'+token));
+    for(const token of numberTokens.slice(0,3))requests.push('https://api.tcgdex.net/v2/en/cards?localId='+encodeURIComponent('like:'+token));
+    requests.push('https://api.tcgdex.net/v2/en/cards?id='+encodeURIComponent('like:'+q));
+    const raw=(await Promise.all(requests.map(u=>getJson<any[]>(u).catch(()=>[] as any[])))).flat();
     const seen=new Set<string>();
-    return merged.filter(c=>{if(seen.has(c.id))return false;seen.add(c.id);return true}).slice(0,80).map(c=>({
-      id:String(c.id),game:'pokemon',name:c.name,setId:c.set?.id,setName:c.set?.name,number:numberOf(c.localId),
-      rarity:c.rarity,image:c.image?c.image+'/high.webp':pokemonImage(String(c.set?.id||''),numberOf(c.localId),'high'),
-      priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined
-    }));
+    const merged=raw.filter(c=>{const id=String(c?.id||'');if(!id||seen.has(id))return false;seen.add(id);return true});
+    const normalized=q.toLowerCase();
+    const mapped=merged.map(c=>{
+      const number=numberOf(c.localId);
+      const hay=(String(c.name||'')+' '+number+' '+String(c.id||'')).toLowerCase();
+      const tokenHits=tokens.filter(t=>hay.includes(t.toLowerCase())).length;
+      return {card:{
+        id:String(c.id),printingId:String(c.id),game:'pokemon' as const,name:c.name,setId:c.set?.id,setName:c.set?.name,number,
+        rarity:c.rarity,image:c.image?c.image+'/high.webp':pokemonImage(String(c.set?.id||''),number,'high'),
+        priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined
+      },hits:tokenHits,exact:hay.includes(normalized)};
+    });
+    return mapped.sort((a,b)=>b.exact===a.exact?(b.hits-a.hits):b.exact?1:-1).slice(0,80).map(x=>x.card);
   }
-  const [byName,byCode]=await Promise.all([
-    getJson<any>('https://db.ygoprodeck.com/api/v7/cardinfo.php?fname='+encodeURIComponent(q)+'&num=80&offset=0').catch(()=>({data:[]})),
-    getJson<any>('https://db.ygoprodeck.com/api/v7/cardinfo.php?cardset='+encodeURIComponent(q)+'&num=80&offset=0').catch(()=>({data:[]}))
-  ]);
-  const cards=[...(byName.data||[]),...(byCode.data||[])];const seen=new Set<string>();
-  const out:CatalogCard[]=[];
+  const requests=[
+    'https://db.ygoprodeck.com/api/v7/cardinfo.php?fname='+encodeURIComponent(q)+'&num=100&offset=0',
+    'https://db.ygoprodeck.com/api/v7/cardinfo.php?cardset='+encodeURIComponent(q)+'&num=100&offset=0'
+  ];
+  const cards=(await Promise.all(requests.map(u=>getJson<any>(u).catch(()=>({data:[]}))))).flatMap(x=>x.data||[]);
+  const seen=new Set<string>();const out:CatalogCard[]=[];
   for(const c of cards){
     for(const s of (c.card_sets||[])){
-      const hay=(String(s.set_code||'')+' '+String(s.set_name||'')).toLowerCase();
-      if(!hay.includes(q.toLowerCase()) && !String(c.name).toLowerCase().includes(q.toLowerCase()))continue;
+      const hay=(String(c.name||'')+' '+String(s.set_code||'')+' '+String(s.set_name||'')+' '+String(s.set_rarity||'')).toLowerCase();
+      if(!tokens.some(t=>hay.includes(t.toLowerCase())))continue;
       const printingId=String(s.set_code||s.set_rarity||s.set_name);
       const id=String(c.id)+'::'+printingId;
       if(seen.has(id))continue;seen.add(id);
