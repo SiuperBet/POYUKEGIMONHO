@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as RNImage} from 'react-native';
+import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as RNImage,ScrollView} from 'react-native';
 import type {CatalogCard} from '../data/catalog';
 import {getPokemonSetCards,getYugiohSetCards} from '../data/catalog';
 import {CONDITIONS,Condition,estimateCardValueEUR} from '../data/store';
@@ -81,7 +81,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
   const retry=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
   const rescan=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);void smartScan();};
 
-  return <View style={styles.root}>
+  return <ScrollView style={styles.root} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={true}>\n  <View>
     <View style={styles.header}>
       <TouchableOpacity style={styles.exitButton} onPress={()=>onExit?.()}><Text style={styles.exitText}>‹</Text></TouchableOpacity>
       <View style={styles.headerTitle}>
@@ -141,7 +141,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
       <View style={styles.info}><Text style={styles.infoTitle}>CROP</Text><Text style={styles.infoCopy}>prospettiva corretta</Text></View>
       <View style={styles.info}><Text style={styles.infoTitle}>QUALITÀ</Text><Text style={styles.infoCopy}>JPEG al massimo</Text></View>
     </View>
-  </View>;
+  </View>\n  </ScrollView;
 }
 
 const styles=StyleSheet.create({
