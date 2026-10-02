@@ -39,7 +39,9 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
     const {recognizeCardImage}=await import('../data/recognition');
     const identified=await recognizeCardImage(uri,game).catch(()=>null);
     setRecognition(identified);
-    setMessage(identified?.card?'Carta riconosciuta automaticamente.':identified?.candidates?.length?'Possibile corrispondenza: scegli una delle carte proposte.':'Carta acquisita: nessuna corrispondenza certa, verifica manualmente.');
+    setRecognizedVariants(identified?.candidates||[]);
+    setSelectedRecognizedCard(identified?.card||null);
+    setMessage(identified?.card?'Carta riconosciuta automaticamente.':identified?.candidates?.length?'Possibile corrispondenza: scegli una delle carte proposte.':'Carta acquisita: nessuna corrispondenza dal catalogo, verifica manualmente.');
     const savedId=await onCaptured?.(uri,identified?.card||identified?.candidates?.[0]);
     setGradedId(savedId);
     setCollectionSaved(false);
