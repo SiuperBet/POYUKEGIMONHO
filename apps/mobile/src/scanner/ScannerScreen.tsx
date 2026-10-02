@@ -5,9 +5,9 @@ import {recognizeCardImage,RecognitionResult} from '../data/recognition';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
-type Props={onCaptured?:(uri:string,card?:CatalogCard)=>void};
+type Props={onCaptured?:(uri:string,card?:CatalogCard)=>void;onSaveCollection?:(card:CatalogCard)=>void};
 
-export function ScannerScreen({onCaptured}:Props){
+export function ScannerScreen({onCaptured,onSaveCollection}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
   const [lastPhoto,setLastPhoto]=useState<string|null>(null);
   const [message,setMessage]=useState('Premi SCANSIONE: il telefono rileverà automaticamente i 4 bordi.');
