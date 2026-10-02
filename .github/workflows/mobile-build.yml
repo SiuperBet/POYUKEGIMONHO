@@ -5,6 +5,10 @@ permissions:
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-build.yml"
 
 concurrency:
   group: mobile-build-${{ github.ref }}
