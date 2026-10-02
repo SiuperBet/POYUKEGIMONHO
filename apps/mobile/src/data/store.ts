@@ -6,7 +6,7 @@ export const CONDITION_FACTORS:Record<Condition,number>={Mint:1,NM:0.95,Excellen
 export const CONDITIONS:Condition[]=['Mint','NM','Excellent','Good','Played','Poor','Damaged'];
 export type CollectionItem=CatalogCard & {quantity:number;condition:Condition;addedAt:string;};
 export function estimateCardValueEUR(priceEUR:number|undefined,condition:Condition='NM'){return Number.isFinite(priceEUR)&&Number(priceEUR)>0?Number(priceEUR)*CONDITION_FACTORS[condition]:0;}
-export type GradedItem={id:string;image?:string;grade:string;score:number;confidence:number;addedAt:string;notes:string[];card?:CatalogCard;};
+export type GradedItem={id:string;image?:string;grade:string;score:number;confidence:number;addedAt:string;notes:string[];condition?:Condition;card?:CatalogCard;};
 
 const COLLECTION='poyukegimonho:mobile:collection:v1';
 const GRADED='poyukegimonho:mobile:graded:v1';
