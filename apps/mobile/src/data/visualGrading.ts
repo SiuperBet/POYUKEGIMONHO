@@ -9,58 +9,100 @@ function clamp(v:number,min=0,max=100){return Math.max(min,Math.min(max,v))}
 function conditionFromScore(score:number):Condition{
   if(score>=97)return 'Mint'; if(score>=92)return 'NM'; if(score>=82)return 'Excellent'; if(score>=70)return 'Good'; if(score>=55)return 'Played'; if(score>=35)return 'Poor'; return 'Damaged';
 }
-function severity(score:number):DefectRecord['severity']{return score>=70?'high':score>=38?'medium':'low'}
-function defect(id:string,type:DefectRecord['type'],score:number,confidence:number,side:'front'|'back'='front'):DefectRecord{return{id,type,side,severity:severity(score),confidence:Math.round(confidence*100),score:Math.round(score),source:'automatic',region:{x:.08,y:.08,width:.84,height:.84}}}
+function severity(score:number):DefectRecord['severity']{return score>=78?'high':score>=52?'medium':'low'}
+function makeDefect(id:string,type:DefectRecord['type'],score:number,confidence:number,side:'front'|'back',region:{x:number;y:number;width:number;height:number},note?:string):DefectRecord{
+  return {id,type,side,severity:severity(score),confidence:Math.round(clamp(confidence)),score:Math.round(clamp(score)),source:'automatic',region,note};
+}
+type RegionStats={score:number;white:number;dark:number;edge:number;line:number;texture:number;confidence:number;region:{x:number;y:number;width:number;height:number}};
+type ImageStats={
+  score:number;quality:number;sharpness:number;glare:number;uniformity:number;
+  scratches:number;creases:number;whitening:number;dirt:number;printLines:number;
+  corners:RegionStats[];edges:RegionStats[];interior:RegionStats;
+};
 
-async function inspect(uri:string){
-  const small=await ImageManipulator.manipulateAsync(uri,[{resize:{width:480}}],{compress:0.9,format:SaveFormat.JPEG,base64:true});
+function regionBox(x:number,y:number,w:number,h:number){return{x,y,width:w,height:h}}
+function analysePixels(pixels:Uint8Array,width:number,height:number,x0:number,y0:number,x1:number,y1:number):RegionStats{
+  const sx=Math.max(0,Math.floor(x0)),sy=Math.max(0,Math.floor(y0)),ex=Math.min(width-1,Math.ceil(x1)),ey=Math.min(height-1,Math.ceil(y1));
+  const rw=Math.max(1,ex-sx),rh=Math.max(1,ey-sy),gray=new Float32Array(rw*rh);
+  let sum=0,sum2=0,edge=0,line=0,white=0,dark=0,texture=0,n=0;
+  const at=(x:number,y:number)=>gray[(y-sy)*rw+(x-sx)];
+  for(let y=sy;y<ey;y++)for(let x=sx;x<ex;x++){
+    const p=(y*width+x)*4; const r=pixels[p],g=pixels[p+1],b=pixels[p+2]; const v=.299*r+.587*g+.114*b;
+    gray[(y-sy)*rw+(x-sx)]=v;sum+=v;sum2+=v*v;n++;
+  }
+  const mean=sum/Math.max(1,n);
+  for(let y=sy+1;y<ey-1;y++)for(let x=sx+1;x<ex-1;x++){
+    const c=at(x,y),dx=Math.abs(at(x+1,y)-at(x-1,y)),dy=Math.abs(at(x,y+1)-at(x,y-1));
+    const g=(dx+dy)*.5;
+    if(g>24)edge++;
+    const lap=Math.abs(4*c-at(x-1,y)-at(x+1,y)-at(x,y-1)-at(x,y+1));
+    if(lap>42)texture++;
+    if(g>30&&Math.max(dx,dy)/(dx+dy+1)>.76)line++;
+    const p=(y*width+x)*4,r=pixels[p],gc=pixels[p+1],b=pixels[p+2],lum=.299*r+.587*gc+.114*b,sat=Math.max(r,gc,b)-Math.min(r,gc,b);
+    if(lum>226&&sat<38)white++; if(lum<38)dark++;
+  }
+  const total=Math.max(1,(ex-sx-2)*(ey-sy-2));
+  const variance=Math.max(0,sum2/Math.max(1,n)-mean*mean);
+  const whitePct=white/total*100,darkPct=dark/total*100,edgePct=edge/total*100,linePct=line/total*100,texturePct=texture/total*100;
+  const anomaly=clamp(texturePct*1.8+linePct*1.35+Math.max(0,whitePct-2)*1.8+Math.max(0,darkPct-4)*.8);
+  const conf=clamp(40+Math.min(35,Math.sqrt(variance)*.9)+(n>4000?20:0));
+  return {score:anomaly,white:clamp(whitePct*2.2),dark:clamp(darkPct*1.7),edge:clamp(edgePct*1.6),line:clamp(linePct*3),texture:clamp(texturePct*2),confidence:conf,region:regionBox(x0/width,y0/height,(x1-x0)/width,(y1-y0)/height)};
+}
+
+async function inspect(uri:string):Promise<ImageStats>{
+  const small=await ImageManipulator.manipulateAsync(uri,[{resize:{width:640}}],{compress:0.92,format:SaveFormat.JPEG,base64:true});
   if(!small.base64)throw new Error('Immagine non disponibile');
   const image=Skia.Image.MakeImageFromEncoded(Skia.Data.fromBase64(small.base64)); if(!image)throw new Error('Decodifica immagine fallita');
   const width=image.width(),height=image.height();
   const pixels=image.readPixels(0,0,{width,height,colorType:ColorType.RGBA_8888,alphaType:AlphaType.Unpremul}); if(!pixels)throw new Error('Pixel non disponibili');
-  const gray=new Float32Array(width*height); let sum=0,sum2=0;
-  for(let i=0,p=0;i<gray.length;i++,p+=4){const y=.299*pixels[p]+.587*pixels[p+1]+.114*pixels[p+2];gray[i]=y;sum+=y;sum2+=y*y}
-  const mean=sum/gray.length;const variance=Math.max(0,sum2/gray.length-mean*mean);
-  let lap=0,edgeWhite=0,edgeDark=0,thinLines=0,interiorHigh=0,samples=0,interiorSamples=0;
-  const borderX=Math.max(2,Math.floor(width*.08)),borderY=Math.max(2,Math.floor(height*.08));
-  for(let y=1;y<height-1;y++)for(let x=1;x<width-1;x++){
-    const i=y*width+x,c=gray[i],dx=Math.abs(gray[i+1]-gray[i-1]),dy=Math.abs(gray[i+width]-gray[i-width]),g=(dx+dy)*.5;
-    const l=Math.abs(4*c-gray[i-1]-gray[i+1]-gray[i-width]-gray[i+width]);lap+=l*l;samples++;
-    const border=x<borderX||x>=width-borderX||y<borderY||y>=height-borderY;const p=i*4;const r=pixels[p],gch=pixels[p+1],b=pixels[p+2];const lum=.299*r+.587*gch+.114*b;const sat=Math.max(r,gch,b)-Math.min(r,gch,b);
-    if(border){if(lum>220&&sat<35)edgeWhite++;if(lum<45)edgeDark++}
-    const interior=x>borderX&&x<width-borderX&&y>borderY&&y<height-borderY;
-    if(interior){interiorSamples++;if(l>42)interiorHigh++;if(g>28&&Math.max(dx,dy)/(dx+dy+1)>.72)thinLines++}
-  }
-  const sharpness=clamp(Math.sqrt(lap/Math.max(1,samples))*3);
-  const whiteRatio=clamp(edgeWhite/Math.max(1,(width*height)*.16)*100),darkRatio=clamp(edgeDark/Math.max(1,(width*height)*.16)*100);
-  const highRatio=clamp(interiorHigh/Math.max(1,interiorSamples)*100),lineRatio=clamp(thinLines/Math.max(1,interiorSamples)*100);
-  const quality=clamp(55+sharpness*.45-Math.max(0,Math.abs(mean-128)-100)*.2);
-  const scratches=clamp((highRatio*.85+lineRatio*1.5)-18),creases=clamp(lineRatio*3.2-7),whitening=clamp(whiteRatio*1.8-7),dirt=clamp(darkRatio*1.9-8);
-  const imperfections=clamp(scratches*.35+creases*.3+whitening*.2+dirt*.15);
-  return {score:clamp(quality-imperfections*.42),quality,sharpness,scratches,creases,whitening,dirt,imperfections,variance}
+  const all=analysePixels(pixels,width,height,0,0,width,height);
+  const marginX=Math.max(3,Math.floor(width*.055)),marginY=Math.max(3,Math.floor(height*.055));
+  const cw=width*.18,ch=height*.18;
+  const corners=[
+    analysePixels(pixels,width,height,marginX,marginY,marginX+cw,marginY+ch),
+    analysePixels(pixels,width,height,width-marginX-cw,marginY,width-marginX,marginY+ch),
+    analysePixels(pixels,width,height,marginX,height-marginY-ch,marginX+cw,height-marginY),
+    analysePixels(pixels,width,height,width-marginX-cw,height-marginY-ch,width-marginX,height-marginY)
+  ];
+  const edges=[
+    analysePixels(pixels,width,height,marginX,marginY,width-marginX,marginY+height*.055),
+    analysePixels(pixels,width,height,width-marginX-width*.055,marginY,width-marginX, height-marginY),
+    analysePixels(pixels,width,height,marginX,height-marginY-height*.055,width-marginX,height-marginY),
+    analysePixels(pixels,width,height,marginX,marginY,marginX+width*.055,height-marginY)
+  ];
+  const inner=analysePixels(pixels,width,height,width*.12,height*.12,width*.88,height*.88);
+  const sharpness=clamp(all.edge*1.5+all.texture*.8);
+  const glare=clamp(Math.max(0,all.white-22));
+  const uniformity=clamp(100-Math.abs(50-all.dark)-Math.abs(50-all.white)*.35);
+  const scratches=clamp(inner.line*.9+inner.texture*.55-10);
+  const creases=clamp(inner.line*1.25+inner.edge*.35-22);
+  const whitening=clamp(corners.reduce((s,r)=>s+r.white,0)/4+edges.reduce((s,r)=>s+r.white,0)/4-12);
+  const dirt=clamp((edges.reduce((s,r)=>s+r.dark,0)/4)*.8+(corners.reduce((s,r)=>s+r.dark,0)/4)*.45-8);
+  const printLines=clamp(inner.line*.72-16);
+  const quality=clamp(78+sharpness*.18-glare*.18-(all.texture>82?8:0));
+  const imperfections=clamp(scratches*.34+creases*.28+whitening*.24+dirt*.14);
+  return {
+    score:clamp(quality-imperfections*.58),
+    quality,sharpness,glare,uniformity,scratches,creases,whitening,dirt,printLines,corners,edges,interior:inner
+  };
 }
 
-export async function analyzeCardCondition(frontUri:string,backUri?:string):Promise<VisualAnalysis>{
-  const front=await inspect(frontUri); const back=backUri?await inspect(backUri).catch(()=>undefined):undefined;
-  const avg=back?(front.score*.58+back.score*.42):front.score;
-  const defects:DefectRecord[]=[
-    defect('auto-scratch-front','graffio',front.scratches,back?.score?0.68:0.45,'front'),
-    defect('auto-line-front','riga',front.creases*.75,0.52,'front'),
-    defect('auto-crease-front','piega',front.creases,0.55,'front'),
-    defect('auto-white-front','puntino_bianco',front.whitening,0.58,'front'),
-    defect('auto-dirt-front','sporco',front.dirt,0.52,'front'),
-    defect('auto-edge-front','whitening',front.whitening*.85,0.6,'front'),
-    ...(back?[defect('auto-scratch-back','graffio',back.scratches,0.64,'back'),defect('auto-crease-back','piega',back.creases,0.55,'back'),defect('auto-white-back','puntino_bianco',back.whitening,0.58,'back'),defect('auto-dirt-back','sporco',back.dirt,0.52,'back')]:[])
-  ].map(d=>({...d,confidence:Math.max(15,d.confidence)}));
-  const significant=defects.filter(d=>d.severity!=='low').map(d=>d.type);
-  const notes:string[]=[];
-  if(!back)notes.push('Valutazione preliminare: il retro non è stato acquisito.');
-  if(front.sharpness<35)notes.push('Foto fronte poco definita: ripetere con più luce, distanza stabile e fuoco sulla carta.');
-  if(back&&back.sharpness<35)notes.push('Foto retro poco definita: ripetere con più luce, distanza stabile e fuoco sulla carta.');
-  if(significant.length)notes.push('Possibili difetti superficiali rilevati: verificare manualmente prima del grading finale.');
-  else notes.push('Nessuna anomalia superficiale forte rilevata dal controllo automatico.');
-  const confidence=clamp((back?62:43)+(front.sharpness>55?10:0)+(back&&back.sharpness>55?10:0)-(significant.length?8:0),25,86);
-  return {condition:conditionFromScore(avg),score:Math.round(avg),confidence:Math.round(confidence),frontQuality:Math.round(front.quality),backQuality:back?Math.round(back.quality):undefined,defects,hasBack:Boolean(back),engine:'local-vision-assisted',notes};
+function defectsFromStats(stats:ImageStats,side:'front'|'back'):DefectRecord[]{
+  const out:DefectRecord[]=[];
+  const add=(id:string,type:DefectRecord['type'],score:number,baseConf:number,region:{x:number;y:number;width:number;height:number},note?:string)=>{
+    if(score<28)return;
+    const signal=Math.min(1,score/100);
+    const confidence=baseConf*(0.55+signal*.45);
+    out.push(makeDefect(id,type,score,confidence,side,region,note));
+  };
+  add('surface-scratch-'+side,'graffio',stats.scratches,stats.interior.confidence,stats.interior.region,'Segnale superficiale: richiede verifica con luce angolata.');
+  add('surface-line-'+side,'riga',stats.printLines,stats.interior.confidence,stats.interior.region,'Possibile print line/riga: distinguere dal riflesso prima della conferma.');
+  add('surface-crease-'+side,'piega',stats.creases,stats.interior.confidence,stats.interior.region,'Possibile piega/crease: confermare con foto inclinata.');
+  add('surface-dirt-'+side,'sporco',stats.dirt,stats.interior.confidence,stats.interior.region);
+  add('surface-print-'+side,'difetto_stampa',stats.printLines*.85,stats.interior.confidence,stats.interior.region);
+  stats.corners.forEach((r,i)=>add('corner-'+side+'-'+i,'puntino_bianco',r.white,r.confidence,r.region,'Possibile whitening/punto bianco sull’angolo.'));
+  stats.edges.forEach((r,i)=>add('edge-'+side+'-'+i,'whitening',r.white,r.confidence,r.region,'Possibile whitening/usura del bordo.'));
+  return out;
 }
 
 export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Promise<ProfessionalAnalysis>{
