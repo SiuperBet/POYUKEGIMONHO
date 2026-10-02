@@ -7,7 +7,7 @@ import {analyzeCardCondition,VisualAnalysis} from '../data/visualGrading';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
-type Props={onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
+type Props={onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
 export function ScannerScreen({onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
