@@ -63,10 +63,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
   };
 
   useEffect(()=>{
-    if(!launched.current){
-      launched.current=true;
-      void smartScan();
-    }
+    if(!launched.current){launched.current=true;}
   },[]);
 
   const chooseCondition=async(condition:Condition)=>{setConditionTouched(true);setSelectedCondition(condition);if(gradedId)await onConditionSelected?.(gradedId,condition);setCollectionSaved(false)};
