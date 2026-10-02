@@ -1,15 +1,18 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator} from 'react-native';
+import type {CatalogCard} from '../data/catalog';
+import {recognizeCardImage,RecognitionResult} from '../data/recognition';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
-type Props={onCaptured?:(uri:string)=>void};
+type Props={onCaptured?:(uri:string,card?:CatalogCard)=>void};
 
 export function ScannerScreen({onCaptured}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
   const [lastPhoto,setLastPhoto]=useState<string|null>(null);
   const [message,setMessage]=useState('Premi SCANSIONE: il telefono rileverà automaticamente i 4 bordi.');
   const [error,setError]=useState<string|null>(null);
+  const [recognition,setRecognition]=useState<RecognitionResult|null>(null);
   const launched=useRef(false);
 
   const smartScan=async()=>{
@@ -26,8 +29,11 @@ export function ScannerScreen({onCaptured}:Props){
       if(scanned){
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
         setLastPhoto(uri);
-        setMessage('Carta rilevata: bordi e prospettiva corretti.');
-        onCaptured?.(uri);
+        setMessage('Carta rilevata: avvio riconoscimento…');
+        const identified=await recognizeCardImage(uri,'pokemon').catch(()=>null);
+        setRecognition(identified);
+        setMessage(identified?.card?'Carta riconosciuta automaticamente.':'Carta acquisita: riconoscimento da verificare.');
+        onCaptured?.(uri,identified?.card||undefined);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }else{
         setMessage('Nessuna carta acquisita.');
@@ -50,8 +56,8 @@ export function ScannerScreen({onCaptured}:Props){
     }
   },[]);
 
-  const retry=()=>{setLastPhoto(null);setError(null);setMessage('Pronto: premi SCANSIONE per rilevare automaticamente i quattro bordi.');};
-  const rescan=()=>{setLastPhoto(null);void smartScan();};
+  const retry=()=>{setLastPhoto(null);setRecognition(null);setError(null);setMessage('Pronto: premi SCANSIONE per rilevare automaticamente i quattro bordi.');};
+  const rescan=()=>{setLastPhoto(null);setRecognition(null);void smartScan();};
 
   return <View style={styles.root}>
     <View style={styles.header}>
@@ -84,6 +90,7 @@ export function ScannerScreen({onCaptured}:Props){
     {error&&<View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}
 
     {lastPhoto&&<View style={styles.resultPanel}>
+      {recognition?.card&&<View style={styles.recognitionBox}><Text style={styles.resultTitle}>Riconoscimento</Text><Text style={styles.recognizedName}>{recognition.card.name}</Text><Text style={styles.resultCopy}>{recognition.card.setName||'Set non identificato'}{recognition.card.number?' · '+recognition.card.number:''}{recognition.language?' · '+recognition.language:''}</Text><Text style={styles.confidence}>Confidenza {Math.round(recognition.confidence*100)}%</Text></View>}
       <Text style={styles.resultTitle}>Carta acquisita e raddrizzata</Text>
       <Text style={styles.resultCopy}>Questa immagine è il risultato del crop/perspective correction dello scanner nativo ed entra nel pipeline di POYUKEGIMONHO.</Text>
       <View style={styles.actions}>
@@ -125,6 +132,7 @@ const styles=StyleSheet.create({
   scanButton:{marginTop:14,backgroundColor:'#b8ff5a',borderRadius:16,paddingVertical:15,alignItems:'center',borderWidth:1,borderColor:'#d8ff9c'},
   scanButtonText:{color:'#10130c',fontSize:16,fontWeight:'900'},scanButtonSub:{color:'#263018',fontSize:9,fontWeight:'900',letterSpacing:1,marginTop:3},
   resultPanel:{marginTop:12,padding:15,borderRadius:17,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},
+  recognitionBox:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#0d1510',borderWidth:1,borderColor:'#426b27'},recognizedName:{color:'#b8ff5a',fontSize:20,fontWeight:'900',marginTop:4},confidence:{color:'#d8ff9c',fontSize:11,fontWeight:'800',marginTop:6},
   resultTitle:{color:'#f5f7fa',fontSize:17,fontWeight:'900'},resultCopy:{color:'#9aa3af',fontSize:12,lineHeight:18,marginTop:6},
   actions:{flexDirection:'row',gap:9,marginTop:13},primary:{flex:1,backgroundColor:'#b8ff5a',paddingVertical:12,borderRadius:12,alignItems:'center'},primaryText:{color:'#10130c',fontWeight:'900',fontSize:12},secondary:{flex:1,backgroundColor:'#20252d',paddingVertical:12,borderRadius:12,alignItems:'center'},secondaryText:{color:'#f5f7fa',fontWeight:'900',fontSize:12},
   error:{marginTop:10,padding:11,borderRadius:12,backgroundColor:'#2a1518',borderWidth:1,borderColor:'#5a252b'},errorText:{color:'#ff9b9b',fontSize:11},
