@@ -123,4 +123,51 @@ export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Pr
   if(photos.length<3)notes.push('Per una verifica più precisa aggiungere foto ravvicinate e con angolazione diversa.');
   if(validExtras.length)notes.push('Le acquisizioni aggiuntive vengono usate per controllare superficie, bordi e possibili micro-difetti.');
   return {mode:'professional',completed:Boolean(front&&photos.length>=2),photos,subgrades:{centering,corners,edges,surface},overall,confidence:Math.round(clamp(45+photos.length*6+(q>65?12:0),35,92)),alterationCheck:'review',notes};
+}export async function analyzeCardCondition(frontUri:string,backUri?:string):Promise<VisualAnalysis>{
+  const front=await inspect(frontUri);
+  const back=backUri?await inspect(backUri).catch(()=>undefined):undefined;
+  const avg=back?(front.score*.58+back.score*.42):front.score;
+  const defects=[...defectsFromStats(front,'front'),...(back?defectsFromStats(back,'back'):[])];
+  const severe=defects.filter(d=>d.severity==='high').length;
+  const medium=defects.filter(d=>d.severity==='medium').length;
+  const confidence=clamp((back?64:48)+(front.quality>70?8:0)+(back&&back.quality>70?8:0)-severe*5-medium*2,28,90);
+  const notes:string[]=[];
+  if(!back)notes.push('Il retro non è stato acquisito: la valutazione è preliminare.');
+  if(front.sharpness<42)notes.push('Fronte poco leggibile: acquisire una foto più nitida prima del voto finale.');
+  if(back&&back.sharpness<42)notes.push('Retro poco leggibile: acquisire una foto più nitida prima del voto finale.');
+  if(front.glare>35)notes.push('Riflessi forti sul fronte: usare una luce più diffusa o un’inclinazione diversa.');
+  if(back&&back.glare>35)notes.push('Riflessi forti sul retro: usare una luce più diffusa o un’inclinazione diversa.');
+  if(defects.length)notes.push('Sono stati rilevati segnali di difetto; i segnali ambigui devono essere verificati con foto ravvicinata o luce angolata.');
+  else notes.push('Nessun segnale forte rilevato dal controllo automatico.');
+  return {
+    condition:conditionFromScore(avg),
+    score:Math.round(avg),
+    confidence:Math.round(confidence),
+    frontQuality:Math.round(front.quality),
+    backQuality:back?Math.round(back.quality):undefined,
+    defects,
+    hasBack:Boolean(back),
+    engine:'local-vision-assisted-v2',
+    notes
+  };
+}
+
+export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Promise<ProfessionalAnalysis>{
+  const front=photos.find(p=>p.purpose==='front'),back=photos.find(p=>p.purpose==='back');
+  const extra=photos.filter(p=>p.id!==front?.id&&p.id!==back?.id);
+  const frontStats=front?await inspect(front.uri).catch(()=>undefined):undefined;
+  const backStats=back?await inspect(back.uri).catch(()=>undefined):undefined;
+  const extras=await Promise.all(extra.map(p=>inspect(p.uri).catch(()=>undefined)));
+  const validExtras=extras.filter(Boolean) as Awaited<ReturnType<typeof inspect>>[];
+  const qualityAvg=[frontStats?.quality,backStats?.quality,...validExtras.map(x=>x.quality)].filter((x):x is number=>typeof x==='number');
+  const q=qualityAvg.length?qualityAvg.reduce((a,b)=>a+b,0)/qualityAvg.length:0;
+  const surface=Math.round(clamp((frontStats?.score||0)*.55+(backStats?.score||frontStats?.score||0)*.25+(validExtras.reduce((a,b)=>a+b.score,0)/Math.max(1,validExtras.length))*.2));
+  const corners=Math.round(clamp(surface-(frontStats?.whitening||0)*.18));
+  const edges=Math.round(clamp(surface-(frontStats?.whitening||0)*.28));
+  const centering=Math.round(clamp(90+(q-70)*.12));
+  const overall=Math.round(clamp(centering*.2+corners*.25+edges*.25+surface*.3));
+  const notes:string[]=['Analisi professionale assistita: più acquisizioni vengono confrontate per ridurre gli errori della singola foto.'];
+  if(photos.length<3)notes.push('Per una verifica più precisa aggiungere foto ravvicinate e con angolazione diversa.');
+  if(validExtras.length)notes.push('Le acquisizioni aggiuntive vengono usate per controllare superficie, bordi e possibili micro-difetti.');
+  return {mode:'professional',completed:Boolean(front&&photos.length>=2),photos,subgrades:{centering,corners,edges,surface},overall,confidence:Math.round(clamp(45+photos.length*6+(q>65?12:0),35,92)),alterationCheck:'review',notes};
 }
