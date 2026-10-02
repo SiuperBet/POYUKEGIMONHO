@@ -49,19 +49,29 @@ function priceFromYgo(card:any){
 }
 
 export async function getPokemonSetCards(setId:string):Promise<CatalogCard[]>{
-  const key='catalog:pokemon:set:'+setId;
+  const key='catalog:pokemon:set:v2:'+setId;
   return cache(key,async()=>{
     const set=await getJson<any>('https://api.tcgdex.net/v2/en/sets/'+encodeURIComponent(setId));
     const cards=Array.isArray(set.cards)?set.cards:[];
-    const full=await Promise.all(cards.map(async (brief:any)=>{
-      try{
-        const c=await getJson<any>('https://api.tcgdex.net/v2/en/cards/'+encodeURIComponent(setId)+'-'+encodeURIComponent(brief.localId));
-        return {id:c.id||setId+'-'+brief.localId,game:'pokemon' as const,name:c.name||brief.name||'Unknown',setId,setName:set.name,number:numberOf(c.localId||brief.localId),rarity:c.rarity,image:c.image?c.image+'/high.webp':undefined,priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined};
-      }catch{
-        return {id:setId+'-'+brief.localId,game:'pokemon' as const,name:brief.name||'Unknown',setId,setName:set.name,number:numberOf(brief.localId),image:brief.image?brief.image+'/high.webp':undefined};
-      }
-    }));
-    return full;
+    // The set endpoint already contains the complete CardBrief list, including image URLs.
+    // Do not block the binder on one HTTP request per card: large sets (100-200+ cards)
+    // can otherwise time out/rate-limit and leave the grid with missing cards/images.
+    // Use the lightweight low.webp asset for the binder; full card details can be fetched
+    // separately when needed by future detail/price hydration.
+    return cards
+      .map((brief:any)=>{
+        const baseImage=typeof brief.image==='string'&&brief.image.length>0?brief.image:undefined;
+        return {
+          id:String(brief.id||setId+'-'+brief.localId),
+          game:'pokemon' as const,
+          name:brief.name||'Unknown',
+          setId,
+          setName:set.name,
+          number:numberOf(brief.localId),
+          image:baseImage?baseImage+'/low.webp':undefined
+        };
+      })
+      .sort((a:any,b:any)=>String(a.number).localeCompare(String(b.number),undefined,{numeric:true,sensitivity:'base'}));
   });
 }
 
