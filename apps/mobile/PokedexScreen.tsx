@@ -198,9 +198,9 @@ const styles=StyleSheet.create({
   heroSprite:{width:80,height:80},
   heroName:{color:'#f5f7fa',fontSize:22,fontWeight:'900'},
   grid:{paddingHorizontal:18,paddingBottom:150},
-  card:{width:'31.9%',backgroundColor:'#10152a',borderRadius:12,borderWidth:1,borderColor:'#303b60',padding:7,minHeight:185},
-  cardImage:{width:'100%',height:128,backgroundColor:'#080b15',borderRadius:7},
-  cardName:{color:'#f5f7fa',fontSize:10,fontWeight:'900',marginTop:6},
+  card:{width:'31.9%',backgroundColor:'#10152a',borderRadius:12,borderWidth:1,borderColor:'#303b60',padding:7,minHeight:185},cardMissing:{opacity:0.48,borderColor:'#2b3346'},
+  cardImage:{width:'100%',height:128,backgroundColor:'#080b15',borderRadius:7},cardImageMissing:{opacity:0.55},cardOwned:{position:'absolute',left:10,top:10,backgroundColor:'#b8ff5a',borderRadius:7,paddingHorizontal:5,paddingVertical:3,zIndex:2},cardOwnedText:{color:'#10130c',fontSize:7,fontWeight:'900'},
+  cardName:{color:'#f5f7fa',fontSize:10,fontWeight:'900',marginTop:6},cardNameMissing:{color:'#8b93a1'},
   cardMeta:{color:'#b8c0cf',fontSize:9,marginTop:2},
   cardSet:{color:'#70798a',fontSize:8,marginTop:2}
 });
