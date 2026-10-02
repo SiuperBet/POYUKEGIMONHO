@@ -141,7 +141,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
       <View style={styles.info}><Text style={styles.infoTitle}>CROP</Text><Text style={styles.infoCopy}>prospettiva corretta</Text></View>
       <View style={styles.info}><Text style={styles.infoTitle}>QUALITÀ</Text><Text style={styles.infoCopy}>JPEG al massimo</Text></View>
     </View>
-  </View>\n  </ScrollView;
+  </View>\n  </ScrollView>
 }
 
 const styles=StyleSheet.create({
