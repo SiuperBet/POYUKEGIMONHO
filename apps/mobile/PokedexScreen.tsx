@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {ActivityIndicator,FlatList,Image,SectionList,StyleSheet,Text,TextInput,TouchableOpacity,View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getPokemonCardsForPokemon} from './src/data/catalog';
-import type {CatalogCard} from './data/catalog';
+import type {CatalogCard} from './src/data/catalog';
 import type {CollectionItem} from './src/data/store';
 
 type DexPokemon={id:number;name:string;sprite:string};
