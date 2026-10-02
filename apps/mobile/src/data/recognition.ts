@@ -1,4 +1,6 @@
 import TextRecognition from '@react-native-ml-kit/text-recognition';
+import * as ImageManipulator from 'expo-image-manipulator';
+import {SaveFormat} from 'expo-image-manipulator';
 import {CatalogCard,Game,searchCards} from './catalog';
 
 export type RecognitionResult={
@@ -41,6 +43,21 @@ function scoreCandidate(card:CatalogCard,ocr:string,number?:string){
   return Math.min(1,score);
 }
 
+async function imageSignature(uri:string){
+  try{
+    const out=await ImageManipulator.manipulateAsync(uri,[{resize:{width:32,height:32}}],{compress:0.55,format:SaveFormat.JPEG,base64:true});
+    if(!out.base64)return undefined;
+    const raw=atob(out.base64); const bins=new Array(24).fill(0); const step=Math.max(1,Math.floor(raw.length/768));
+    for(let i=0;i<raw.length;i+=step){bins[i%24]+=raw.charCodeAt(i)}
+    const max=Math.max(...bins)||1; return bins.map(x=>x/max);
+  }catch{return undefined}
+}
+async function visualSimilarity(a:string,b?:string){
+  if(!b)return 0;
+  const [sa,sb]=await Promise.all([imageSignature(a),imageSignature(b)]); if(!sa||!sb)return 0;
+  let d=0; for(let i=0;i<sa.length;i++)d+=Math.abs(sa[i]-sb[i]); return Math.max(0,1-d/sa.length);
+}
+
 export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise<RecognitionResult>{
   const ocr=await TextRecognition.recognize(uri);
   const text=ocr.text||'';
@@ -49,7 +66,8 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   const queries=[...new Set(lines.filter(x=>!/^\d+[\s/]/.test(x)).slice(0,4))];
   const batches=await Promise.all(queries.map(q=>searchCards(game,q).catch(()=>[])));
   const candidates=[...new Map(batches.flat().map(c=>[c.id,c])).values()];
-  const ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,number)})).sort((a,b)=>b.score-a.score);
+  const baseRanked=candidates.map(card=>({card,score:scoreCandidate(card,text,number)})).sort((a,b)=>b.score-a.score).slice(0,12);
+  const ranked=(await Promise.all(baseRanked.map(async x=>({card:x.card,score:Math.min(1,x.score*.7+(await visualSimilarity(uri,x.card.image))*.3)})))).sort((a,b)=>b.score-a.score);
   const top=ranked[0];
   return {card:top&&top.score>=0.35?top.card:null,confidence:top?.score||0,text,number,language:detectLanguage(text),candidates:ranked.slice(0,8).map(x=>x.card)};
 }
