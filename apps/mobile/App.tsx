@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {SafeAreaView,StatusBar,StyleSheet,Text,TouchableOpacity,View,ScrollView,Image,TextInput,ActivityIndicator,Platform,BackHandler} from 'react-native';
 import {ScannerScreen} from './src/scanner/ScannerScreen';
 import {addGraded,addToCollection,loadCollection,loadGraded,saveCollection,saveGraded,updateGraded,updateCollection,deleteGraded,CollectionItem,GradedItem,Condition,CONDITIONS,estimateCardValueEUR,DefectRecord} from './src/data/store';
-import {getSets,getPokemonSetCards,getPokemonMasterSetCards,getYugiohSetCards,searchCards,hydrateSetDates,hydrateCardDates,POKEMON_LANGUAGE_LABEL,CatalogCard,CatalogSet,Game} from './src/data/catalog';
+import {getSets,getPokemonSetCards,getPokemonMasterSetCards,getYugiohSetCards,searchCards,hydrateSetDates,hydrateCardDates,mapWithConcurrency,POKEMON_LANGUAGE_LABEL,CatalogCard,CatalogSet,Game} from './src/data/catalog';
 import {AppUpdater} from './src/update/AppUpdater';
 import {PokedexScreen} from './PokedexScreen';
 import type {VisualAnalysis} from './src/data/visualGrading';
@@ -69,7 +69,7 @@ export default function App(){
     })).values());
     let cancelled=false;
     setCollectionCatalogLoading(true);
-    Promise.all(groups.map(async c=>{
+    mapWithConcurrency(groups,3,async c=>{
       const key=(c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en');
       try{
         const cards=c.game==='pokemon'
@@ -77,7 +77,7 @@ export default function App(){
           : await getYugiohSetCards(c.setId||c.setName||'');
         return [key,cards] as const;
       }catch{return [key,[] as CatalogCard[]] as const}
-    })).then(entries=>{
+    }).then(entries=>{
       if(cancelled)return;
       const next:Record<string,CatalogCard[]>={};
       for(const [key,cards] of entries)next[key]=cards;
