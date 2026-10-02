@@ -10,7 +10,7 @@ function conditionFromScore(score:number):Condition{
   if(score>=97)return 'Mint'; if(score>=92)return 'NM'; if(score>=82)return 'Excellent'; if(score>=70)return 'Good'; if(score>=55)return 'Played'; if(score>=35)return 'Poor'; return 'Damaged';
 }
 function severity(score:number):DefectRecord['severity']{return score>=70?'high':score>=38?'medium':'low'}
-function defect(id:string,type:DefectRecord['type'],score:number,confidence:number,side:'front'|'back'='front'):DefectRecord{return{id,type,side,severity:severity(score),confidence:Math.round(confidence*100),region:{x:.08,y:.08,width:.84,height:.84}}}
+function defect(id:string,type:DefectRecord['type'],score:number,confidence:number,side:'front'|'back'='front'):DefectRecord{return{id,type,side,severity:severity(score),confidence:Math.round(confidence*100),score:Math.round(score),source:'automatic',region:{x:.08,y:.08,width:.84,height:.84}}}
 
 async function inspect(uri:string){
   const small=await ImageManipulator.manipulateAsync(uri,[{resize:{width:480}}],{compress:0.9,format:SaveFormat.JPEG,base64:true});
