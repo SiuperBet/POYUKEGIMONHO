@@ -18,7 +18,8 @@
     "react-native": "0.81.4",
     "react-native-vision-camera": "^4.7.2",
     "react-native-document-scanner-plugin": "^2.0.4",
-    "@react-native-async-storage/async-storage": "^2.2.0"
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-ml-kit/text-recognition": "^2.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.10",
