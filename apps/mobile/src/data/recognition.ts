@@ -10,6 +10,8 @@ export type RecognitionResult={
   number?:string;
   language?:string;
   candidates:CatalogCard[];
+  status:'matched'|'possible'|'unknown';
+  margin:number;
 };
 
 const normalize=(value:string)=>value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9/ ]/g,' ').replace(/\s+/g,' ').trim();
@@ -67,7 +69,11 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   const batches=await Promise.all(queries.map(q=>searchCards(game,q).catch(()=>[])));
   const candidates=[...new Map(batches.flat().map(c=>[c.id,c])).values()];
   const baseRanked=candidates.map(card=>({card,score:scoreCandidate(card,text,number)})).sort((a,b)=>b.score-a.score).slice(0,12);
-  const ranked=(await Promise.all(baseRanked.map(async x=>({card:x.card,score:Math.min(1,x.score*.7+(await visualSimilarity(uri,x.card.image))*.3)})))).sort((a,b)=>b.score-a.score);
+  const ranked=(await Promise.all(baseRanked.map(async x=>({card:x.card,score:Math.min(1,x.score*.72+(await visualSimilarity(uri,x.card.image))*.28)})))).sort((a,b)=>b.score-a.score);
   const top=ranked[0];
-  return {card:top&&top.score>=0.35?top.card:null,confidence:top?.score||0,text,number,language:detectLanguage(text),candidates:ranked.slice(0,8).map(x=>x.card)};
+  const second=ranked[1]?.score||0;
+  const confidence=top?.score||0;
+  const margin=Math.max(0,confidence-second);
+  const status=confidence>=0.72&&margin>=0.10?'matched':confidence>=0.42?'possible':'unknown';
+  return {card:status==='matched'?top.card:null,confidence,text,number,language:detectLanguage(text),candidates:ranked.slice(0,8).map(x=>x.card),status,margin};
 }
