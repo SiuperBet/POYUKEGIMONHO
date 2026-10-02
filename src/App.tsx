@@ -80,7 +80,7 @@ useEffect(()=>{saveGradingScans(gradingScans)},[gradingScans]);
   void enableDeviceLevel().then(setDeviceLevel);
   try{
    if(!navigator.mediaDevices?.getUserMedia)throw new Error('media');
-   const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:3840,max:3840},height:{ideal:2160,max:2160},frameRate:{ideal:30,max:60}},audio:false});
+   const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30,max:60}},audio:false});
    const track=stream.getVideoTracks()[0];
    const caps=track.getCapabilities?.();
    if(caps?.width&&caps?.height){
@@ -137,7 +137,7 @@ useEffect(()=>{saveGradingScans(gradingScans)},[gradingScans]);
   finally{stopCamera();setProcessing(false)}
  }
 
- function capture(){const c=sourceCanvas();if(!c||processing)return;const frame=c.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,c.width,c.height);const detected=frame?detectCardQuad(frame):null;const usable=stability.state==='ready'?corners:(detected&&detected.confidence>.66?detected.points:corners);void processCanvas(c,usable)}
+ function capture(){const c=sourceCanvas();if(!c||processing)return;const usable=corners.map(p=>({...p}));if(auto&&stability.state==='ready'&&detectedCornersRef.current?.length===4){setCorners(detectedCornersRef.current);void processCanvas(c,detectedCornersRef.current)}else{void processCanvas(c,usable)}}
  function importImage(file:File){
   setError('');capturedRef.current=true;setCameraConsentOpen(false);stopCamera();
   const url=URL.createObjectURL(file);setPreview(old=>{if(old)URL.revokeObjectURL(old);return url});
@@ -281,7 +281,7 @@ function moveCorner(index:number,e:ReactPointerEvent<HTMLButtonElement>){
  {cameraOn&&<video ref={videoRef} className="video live" playsInline muted/>}{cameraConsentOpen&&!cameraOn&&!preview&&<div className="camera-consent-backdrop" role="dialog" aria-modal="true"><div className="camera-consent"><div className="consent-icon">◉</div><p className="eyebrow">FOTOCAMERA</p><h3>Consenti l'accesso alla fotocamera</h3><p>La fotocamera resta aperta finché non acquisisci o chiudi lo scanner. L'acquisizione automatica è separata da questo permesso.</p><div className="consent-actions"><button className="btn" onClick={()=>{setCameraConsentOpen(false);galleryInputRef.current?.click()}}>Scegli dalla galleria</button><button className="primary" onClick={()=>void startCamera()}>Consenti e apri fotocamera</button></div></div></div>}{!cameraOn&&!preview&&<div className="camera-off"><strong>Scanner pronto</strong><span>Attiva la camera o importa una foto.</span><button className="primary" onClick={()=>void startCamera()}>Attiva camera</button></div>}{preview&&<img className="photo-preview" src={preview} alt="Carta acquisita"/>}
  <svg className="quad-overlay" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points={corners.map(p=>p.x+','+p.y).join(' ')}/></svg>
  {corners.map((p,i)=><button key={i} className="corner" style={{left:p.x+'%',top:p.y+'%'}} onPointerDown={e=>{dragging.current=i;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(dragging.current===i)moveCorner(i,e)}} onPointerUp={()=>{dragging.current=null}} onPointerCancel={()=>{dragging.current=null}} aria-label={'Sposta angolo '+(i+1)}/>)}
- {(['top','right','bottom','left'] as const).map(side=><button key={side} className={'side-handle '+side} onPointerDown={e=>e.currentTarget.setPointerCapture(e.pointerId)} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))moveSide(side,e)}} onPointerUp={()=>alignSide(side)} aria-label={'Sposta lato '+side}/> )}
+ 
  <div className="scan-top"><span className={'pill '+(stability.state==='ready'?'good':'')}>● {stableLabel}</span><span className={'pill '+(deviceLevel.available&&deviceLevel.tilt<=6?'good':'')}>◉ {deviceLevel.available?(deviceLevel.tilt<=6?'Bolla OK':`Inclina ${deviceLevel.tilt.toFixed(0)}°`):'Bolla non disponibile'}</span><span className="pill">{quality?.ok?'Qualità OK':'Qualità in analisi'} · Auto {auto?'ON':'OFF'}</span></div><div className="level-bubble"><span className="level-dot" style={{transform:`translate(${Math.max(-34,Math.min(34,(deviceLevel.gamma||0)*1.2))}px,${Math.max(-34,Math.min(34,(deviceLevel.beta||0)*1.2))}px)`}}/></div><div className="scan-bottom"><button className="shutter" onClick={capture} aria-label="Scatta" disabled={processing}/></div></div>
  <div className="scanner-footer"><button className="btn" onClick={()=>galleryInputRef.current?.click()}>Galleria</button><input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{const f=e.target.files?.[0];e.currentTarget.value='';if(f)importImage(f)}} style={{display:'none'}}/><button className="btn" onClick={()=>setAuto(v=>!v)}>Auto Capture: {auto?'ON':'OFF'}</button><button className="btn" onClick={resetScan}>Nuova scansione</button></div>
  <div className="review"><div className="review-head"><div><p className="eyebrow">RISULTATO</p><h3>{processing?'Analisi in corso…':selected?.name||'Nessuna carta riconosciuta'}</h3></div>{grade&&<span className="grade">{grade.grade} · {grade.score}/100</span>}</div>
