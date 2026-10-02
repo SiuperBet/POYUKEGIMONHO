@@ -211,37 +211,41 @@ export async function getYugiohSetCards(setName:string):Promise<CatalogCard[]>{
 export async function getPokemonCardsForPokemon(pokemonName:string):Promise<CatalogCard[]>{
   const normalized=String(pokemonName||'').trim();
   if(!normalized)return [];
-  const key='catalog:pokemon:pokedex-cards:v1:'+encodeURIComponent(normalized.toLowerCase());
+  const key='catalog:pokemon:pokedex-cards:v2:'+encodeURIComponent(normalized.toLowerCase());
   return cacheNonEmpty(key,async()=>{
+    const languageNames=new Map<PokemonLanguage,string>([['en',normalized]]);
+    try{
+      const species=await getJson<any>('https://pokeapi.co/api/v2/pokemon-species/'+encodeURIComponent(normalized.toLowerCase()));
+      for(const entry of (species.names||[])){
+        const code=String(entry.language?.name||'');
+        const value=String(entry.name||'').trim();
+        if(!value)continue;
+        const lang=code==='ja'?'ja':code==='ko'?'ko':code==='zh-Hans'?'zh-cn':code==='zh-Hant'?'zh-tw':code==='fr'?'fr':code==='de'?'de':code==='es'?'es':code==='it'?'it':code==='pt-BR'?'pt-br':undefined;
+        if(lang)languageNames.set(lang,value);
+      }
+    }catch{}
+    const languages=[...languageNames.entries()];
+    const responses=await mapWithConcurrency(languages,4,async([language,name])=>{
+      const rows=await getJson<any[]>('https://api.tcgdex.net/v2/'+language+'/cards?name='+encodeURIComponent(name)+'&pagination:page=1&pagination:itemsPerPage=250').catch(()=>[]);
+      return {language,rows};
+    });
     const out:CatalogCard[]=[];
     const seen=new Set<string>();
-    let page=1;
-    const pageSize=250;
-    while(page<=8){
-      const url='https://api.tcgdex.net/v2/en/cards?name='+encodeURIComponent(normalized)+'&pagination:page='+page+'&pagination:itemsPerPage='+pageSize;
-      const rows=await getJson<any[]>(url).catch(()=>[] as any[]);
-      if(!rows.length)break;
+    for(const {language,rows} of responses){
       for(const card of rows){
         const rawId=String(card?.id||'');
-        if(!rawId||seen.has(rawId))continue;
-        seen.add(rawId);
+        if(!rawId)continue;
+        const id=pokemonCardId(language,rawId);
+        if(seen.has(id))continue;
+        seen.add(id);
         const image=typeof card.image==='string'&&card.image.length>0?card.image+'/high.webp':undefined;
         const parts=rawId.split('-');
         const setId=parts.length>1?parts.slice(0,-1).join('-'):undefined;
         out.push({
-          id:rawId,
-          sourceId:rawId,
-          printingId:rawId,
-          language:'en',
-          game:'pokemon',
-          name:String(card.name||normalized),
-          setId,
-          number:numberOf(card.localId),
-          image,
+          id,sourceId:rawId,printingId:id,language,game:'pokemon',
+          name:String(card.name||normalized),setId,number:numberOf(card.localId),image
         });
       }
-      if(rows.length<pageSize)break;
-      page++;
     }
     return out.sort((a,b)=>String(a.sourceId||a.id).localeCompare(String(b.sourceId||b.id),undefined,{numeric:true,sensitivity:'base'}));
   });
