@@ -31,7 +31,7 @@ function lineScore(edges:Edge[],theta:number,rho:number,w:number,h:number){
 }
 
 function detectPair(edges:Edge[],theta:number,w:number,h:number){
-  const maxR=Math.hypot(w,h),step=5;
+  const maxR=Math.hypot(w,h);
   const candidates:{rho:number;score:number}[]=[];
   for(let rho=-maxR;rho<=maxR;rho+=3){
     const score=lineScore(edges,theta,rho,w,h);
