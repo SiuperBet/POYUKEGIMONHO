@@ -67,6 +67,17 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
     return set;
   },[collection,pokemon]);
 
+  const isCardOwned=useMemo(()=>{
+    const owned=collection.filter(c=>c.game==='pokemon');
+    return (card:CatalogCard)=>{
+      if(owned.some(item=>item.id===card.id||item.id.startsWith(card.id+'::')))return true;
+      return owned.some(item=>normalize(item.name)===normalize(card.name) &&
+        (!card.setId||!item.setId||String(card.setId)===String(item.setId)) &&
+        (!card.number||!item.number||String(card.number)===String(item.number)) &&
+        (!card.language||!item.language||String(card.language)===String(item.language)));
+    };
+  },[collection]);
+
   const visible=useMemo(()=>{
     const q=normalize(query);
     if(!q)return pokemon;
@@ -102,13 +113,17 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
         <Image source={{uri:selected.sprite}} style={styles.heroSprite}/>
         <View style={styles.flex}><Text style={styles.heroName}>{pretty(selected.name)}</Text><Text style={styles.muted}>{cards.length} carte nel catalogo TCGdex</Text></View>
       </View>
-      {cardsLoading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico tutte le carte di {pretty(selected.name)}…</Text></View>:cardsError?<Text style={styles.empty}>Impossibile caricare le carte adesso.</Text>:cards.length===0?<Text style={styles.empty}>Nessuna carta trovata per questo Pokémon.</Text>:<FlatList data={cards} keyExtractor={c=>c.id} numColumns={3} contentContainerStyle={styles.grid} columnWrapperStyle={styles.row} renderItem={({item})=><TouchableOpacity style={styles.card} activeOpacity={0.82} onPress={()=>onOpenCard(item)}>
-        {item.image?<Image source={{uri:item.image}} style={styles.cardImage} resizeMode="contain"/>:<View style={styles.cardImage}/>}
-        <Text style={styles.cardName} numberOfLines={2}>{item.name}</Text>
-        <Text style={styles.cardMeta}>{item.number||'—'}{item.rarity?' · '+item.rarity:''}</Text>
-        <Text style={styles.cardSet} numberOfLines={1}>{item.setName||item.sourceId?.split('-')[0]||item.setId||'Set'}</Text>
-        <Text style={styles.cardSet} numberOfLines={1}>{item.language||'en'}{item.variantLabel?' · '+item.variantLabel:''}</Text>
-      </TouchableOpacity>}/>}
+      {cardsLoading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico tutte le carte di {pretty(selected.name)}…</Text></View>:cardsError?<Text style={styles.empty}>Impossibile caricare le carte adesso.</Text>:cards.length===0?<Text style={styles.empty}>Nessuna carta trovata per questo Pokémon.</Text>:<FlatList data={cards} keyExtractor={c=>c.id} numColumns={3} contentContainerStyle={styles.grid} columnWrapperStyle={styles.row} renderItem={({item})=>{
+        const owned=isCardOwned(item);
+        return <TouchableOpacity style={[styles.card,!owned&&styles.cardMissing]} activeOpacity={0.82} onPress={()=>onOpenCard(item)}>
+          {item.image?<Image source={{uri:item.image}} style={[styles.cardImage,!owned&&styles.cardImageMissing]} resizeMode="contain"/>:<View style={[styles.cardImage,!owned&&styles.cardImageMissing]}/>}
+          {owned&&<View style={styles.cardOwned}><Text style={styles.cardOwnedText}>✓ POSSEDUTA</Text></View>}
+          <Text style={[styles.cardName,!owned&&styles.cardNameMissing]} numberOfLines={2}>{item.name}</Text>
+          <Text style={styles.cardMeta}>{item.number||'—'}{item.rarity?' · '+item.rarity:''}</Text>
+          <Text style={styles.cardSet} numberOfLines={1}>{item.setName||item.sourceId?.split('-')[0]||item.setId||'Set'}</Text>
+          <Text style={styles.cardSet} numberOfLines={1}>{item.language||'en'}{item.variantLabel?' · '+item.variantLabel:''}</Text>
+        </TouchableOpacity>;
+      }}/>}
     </View>;
   }
 
@@ -120,9 +135,12 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
     </TouchableOpacity>;
   };
 
-  const renderItem=({item}:{item:DexRow})=><View style={styles.row}>{item.items.map(p=><TouchableOpacity key={p.id} style={styles.pokemonCard} activeOpacity={0.82} onPress={()=>setSelected(p)}>
-    <Text style={styles.dexNumber}>#{p.id}</Text><Image source={{uri:p.sprite}} style={styles.sprite}/><Text style={styles.pokemonName} numberOfLines={1}>{pretty(p.name)}</Text>{ownedSet.has(p.id)&&<View style={styles.owned}><Text style={styles.ownedText}>✓</Text></View>}
-  </TouchableOpacity>)}{item.items.length<3&&<View style={styles.pokemonCardGhost}/>}</View>;
+  const renderItem=({item}:{item:DexRow})=><View style={styles.row}>{item.items.map(p=>{
+    const owned=ownedSet.has(p.id);
+    return <TouchableOpacity key={p.id} style={[styles.pokemonCard,!owned&&styles.pokemonCardMissing]} activeOpacity={0.82} onPress={()=>setSelected(p)}>
+      <Text style={styles.dexNumber}>#{p.id}</Text><Image source={{uri:p.sprite}} style={[styles.sprite,!owned&&styles.spriteMissing]}/><Text style={[styles.pokemonName,!owned&&styles.pokemonNameMissing]} numberOfLines={1}>{pretty(p.name)}</Text>{owned&&<View style={styles.owned}><Text style={styles.ownedText}>✓</Text></View>}
+    </TouchableOpacity>;
+  })}{item.items.length<3&&<View style={styles.pokemonCardGhost}/>}</View>;
 
   return <View style={styles.root}>
     <View style={styles.header}>
@@ -165,10 +183,10 @@ const styles=StyleSheet.create({
   progressFill:{height:'100%',backgroundColor:'#8e2bd7'},
   starters:{width:155,height:'100%',flexDirection:'row',alignItems:'flex-end',justifyContent:'center',paddingRight:5},
   starter:{width:66,height:66,marginLeft:-8},
-  pokemonCard:{width:'31.9%',minHeight:172,backgroundColor:'#10152a',borderRadius:15,borderWidth:1,borderColor:'#39476e',padding:7,position:'relative'},pokemonCardGhost:{width:'31.9%',minHeight:172,opacity:0},
+  pokemonCard:{width:'31.9%',minHeight:172,backgroundColor:'#10152a',borderRadius:15,borderWidth:1,borderColor:'#39476e',padding:7,position:'relative'},pokemonCardMissing:{opacity:0.46,borderColor:'#2b3346'},pokemonCardGhost:{width:'31.9%',minHeight:172,opacity:0},
   dexNumber:{color:'#b6bdcb',fontSize:12},
-  sprite:{width:'100%',height:100,marginTop:2},
-  pokemonName:{color:'#f5f7fa',fontSize:12,fontWeight:'800',textAlign:'center',marginTop:2},
+  sprite:{width:'100%',height:100,marginTop:2},spriteMissing:{opacity:0.55},
+  pokemonName:{color:'#f5f7fa',fontSize:12,fontWeight:'800',textAlign:'center',marginTop:2},pokemonNameMissing:{color:'#8b93a1'},
   owned:{position:'absolute',right:6,top:6,width:22,height:22,borderRadius:11,backgroundColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
   ownedText:{color:'#10130c',fontWeight:'900'},
   loading:{flex:1,alignItems:'center',justifyContent:'center',gap:10,padding:30},
