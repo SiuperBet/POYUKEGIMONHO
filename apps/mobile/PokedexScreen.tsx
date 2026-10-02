@@ -80,7 +80,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
       return {key:r.key,title:r.title,count:r.end-r.start+1,owned:regionPokemon.filter(p=>ownedSet.has(p.id)).length,starters:r.starters,data:Array.from({length:Math.ceil(data.length/3)},(_,i)=>({items:data.slice(i*3,i*3+3)}))};
     };
     if(mode==='national'){const data=visible;return [{key:'national',title:'National',count:NATIONAL,owned:data.filter(p=>ownedSet.has(p.id)).length,starters:[133,25,448],data:Array.from({length:Math.ceil(data.length/3)},(_,i)=>({items:data.slice(i*3,i*3+3)}))}];}
-    return REGIONS.map(make).filter(s=>s.data.length>0);
+    return REGIONS.map(make);
   },[mode,visible,ownedSet,expandedRegion]);
 
   useEffect(()=>{
