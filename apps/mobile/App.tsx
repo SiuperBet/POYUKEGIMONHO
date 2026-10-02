@@ -140,7 +140,35 @@ export default function App(){
   const selectedVariant=detailVariants.find(v=>v.id===selectedVariantId);
   const selectedManualCard=detailCard&&selectedVariantId?{...detailCard,id:selectedVariant?.cardId||detailCard.id+'::'+selectedVariantId,number:selectedVariant?.number??detailCard.number,setId:selectedVariant?.setId??detailCard.setId,variantId:selectedVariantId,variantLabel:selectedVariant?.label||selectedVariantId,priceEUR:selectedVariant?.priceEUR??detailCard.priceEUR,priceUSD:selectedVariant?.priceUSD??detailCard.priceUSD,image:selectedVariant?.image||detailCard.image} as CatalogCard:detailCard;
   const captureSaved=async(uri:string,card?:CatalogCard)=>{const item:GradedItem={id:Date.now().toString(),image:uri,grade:'Da valutare',score:0,confidence:0,addedAt:new Date().toISOString(),notes:['Scansione salvata. Condizione e difetti possono essere completati successivamente.'],condition:'Da verificare',card};const next=await addGraded(item);setGraded(next);return item.id;};const setScannedCondition=async(id:string,selectedCondition:Condition)=>{const next=graded.map(x=>x.id===id?{...x,condition:selectedCondition}:x);setGraded(next);await saveGraded(next)};const setScannedBack=async(id:string,uri:string)=>{const next=await updateGraded(id,{backImage:uri});setGraded(next)};const setScannedAnalysis=async(id:string,analysis:VisualAnalysis)=>{const next=await updateGraded(id,{visualAnalysis:analysis,grade:analysis.condition,score:analysis.score,confidence:analysis.confidence,notes:analysis.notes,condition:analysis.condition});setGraded(next)};const setScannedProfessional=async(id:string,analysis:ProfessionalAnalysis)=>{const next=await updateGraded(id,{professionalAnalysis:analysis});setGraded(next)};const setScannedCard=async(id:string,card:CatalogCard)=>{const next=await updateGraded(id,{card});setGraded(next)};const removeGraded=async(id:string)=>{const next=await deleteGraded(id);setGraded(next);setGradedDetail(null)};const removeCollection=async(item:CollectionItem)=>{const next=collection.filter(x=>!(x.id===item.id&&x.condition===item.condition));setCollection(next);await saveCollection(next);setCollectionDetail(null)};
-  const collectionDetailItems=useMemo(()=>collection.filter(item=>collectionGroups.some(g=>g.cards.some(c=>c.id===item.id||item.id.startsWith(c.id+'::')))),[collection,collectionGroups]);
+  const collectionDetailCard=useMemo(()=>{
+    if(!collectionDetail)return undefined;
+    for(const g of collectionGroups){
+      const found=g.cards.find(c=>c.id===collectionDetail.id||collectionDetail.id.startsWith(c.id+'::'));
+      if(found)return found;
+    }
+    return undefined;
+  },[collectionDetail,collectionGroups]);
+  const collectionDetailItems=useMemo(()=>{
+    const ordered:CollectionItem[]=[];
+    const used=new Set<string>();
+    for(const g of collectionGroups){
+      for(const c of g.cards){
+        for(const item of collection){
+          const key=item.id+'::'+item.condition;
+          if(used.has(key))continue;
+          if(item.id===c.id||item.id.startsWith(c.id+'::')){
+            ordered.push(item);
+            used.add(key);
+          }
+        }
+      }
+    }
+    for(const item of collection){
+      const key=item.id+'::'+item.condition;
+      if(!used.has(key)){ordered.push(item);used.add(key);}
+    }
+    return ordered;
+  },[collection,collectionGroups]);
   const openCollectionDetail=(item:CollectionItem)=>{const i=collectionDetailItems.findIndex(x=>x.id===item.id&&x.condition===item.condition);setCollectionDetailIndex(i>=0?i:0);setCollectionDetail(item)};
   const moveCollectionDetail=(delta:number)=>{if(!collectionDetailItems.length)return;const current=collectionDetailItems.findIndex(x=>x.id===collectionDetail?.id&&x.condition===collectionDetail?.condition);const next=(current<0?0:(current+delta+collectionDetailItems.length)%collectionDetailItems.length);setCollectionDetailIndex(next);setCollectionDetail(collectionDetailItems[next])};
   const changeCollectionQuantity=async(delta:number)=>{if(!collectionDetail)return;const current=collectionDetail;const items=await loadCollection();const idx=items.findIndex(x=>x.id===current.id&&x.condition===current.condition);if(idx<0)return;const quantity=items[idx].quantity+delta;if(quantity<=0){const next=items.filter((_,i)=>i!==idx);await saveCollection(next);setCollection(next);setCollectionDetail(null);return}items[idx]={...items[idx],quantity};await saveCollection(items);setCollection(items);setCollectionDetail(items[idx])};
@@ -311,15 +339,15 @@ export default function App(){
   const collectionModal=collectionDetail?<View style={styles.modalBackdrop}><View style={styles.modalCard} onTouchStart={handleCollectionTouchStart} onTouchEnd={handleCollectionTouchEnd}>
     <View style={styles.modalHeader}><View style={styles.flex}><Text style={styles.kicker}>SCHEDA NEL RACCOGLITORE</Text><Text style={styles.h2}>{collectionDetail.name}</Text></View><TouchableOpacity onPress={()=>setCollectionDetail(null)}><Text style={styles.filterClose}>×</Text></TouchableOpacity></View>
     <ScrollView>
-      {collectionDetail.image&&<Image source={{uri:collectionDetail.image}} style={styles.detailScanImage} resizeMode="contain"/>}
+      {(collectionDetail.image||collectionDetailCard?.image)&&<Image source={{uri:collectionDetail.image||collectionDetailCard?.image}} style={styles.detailScanImage} resizeMode="contain"/>}
       {collectionDetail.backImage&&<Image source={{uri:collectionDetail.backImage}} style={styles.detailScanImage} resizeMode="contain"/>}
-      <Text style={styles.muted}>{collectionDetail.setName||'Set non identificato'}{collectionDetail.number?' · '+collectionDetail.number:''}</Text>
+      <Text style={styles.muted}>{collectionDetail.setName||collectionDetailCard?.setName||'Set non identificato'}{collectionDetail.number||collectionDetailCard?.number?' · '+(collectionDetail.number||collectionDetailCard?.number):''}{collectionDetail.rarity||collectionDetailCard?.rarity?' · '+(collectionDetail.rarity||collectionDetailCard?.rarity):''}</Text>
       <View style={styles.swipeNav}><TouchableOpacity style={styles.swipeButton} onPress={()=>moveCollectionDetail(-1)}><Text style={styles.swipeButtonText}>‹ PRECEDENTE</Text></TouchableOpacity><Text style={styles.swipeCounter}>{Math.max(0,collectionDetailItems.findIndex(x=>x.id===collectionDetail.id&&x.condition===collectionDetail.condition)+1)} / {collectionDetailItems.length}</Text><TouchableOpacity style={styles.swipeButton} onPress={()=>moveCollectionDetail(1)}><Text style={styles.swipeButtonText}>SUCCESSIVA ›</Text></TouchableOpacity></View>
       <Text style={styles.swipeHint}>Scorri lateralmente sulla scheda per passare alla carta precedente o successiva.</Text>
       <View style={styles.detailInfoGrid}>
         <View style={styles.detailInfoBox}><Text style={styles.detailLabel}>QUANTITÀ</Text><View style={styles.quantityRow}><TouchableOpacity style={styles.quantityButton} onPress={()=>void changeCollectionQuantity(-1)}><Text style={styles.quantityButtonText}>−</Text></TouchableOpacity><Text style={styles.quantityValue}>{collectionDetail.quantity}</Text><TouchableOpacity style={styles.quantityButton} onPress={()=>void changeCollectionQuantity(1)}><Text style={styles.quantityButtonText}>+</Text></TouchableOpacity></View></View>
         <View style={styles.detailInfoBox}><Text style={styles.detailLabel}>VERSIONE / STAMPA</Text><Text style={styles.detailValue}>{collectionDetail.variantLabel||'Standard'}</Text></View>
-        <View style={styles.detailInfoBox}><Text style={styles.detailLabel}>LINGUA</Text><Text style={styles.detailValue}>{languageLabel(String(collectionDetail.language||'en'))}</Text></View>
+        <View style={styles.detailInfoBox}><Text style={styles.detailLabel}>LINGUA</Text><Text style={styles.detailValue}>{languageLabel(String(collectionDetail.language||collectionDetailCard?.language||'en'))}</Text></View>
       </View>
       <Text style={styles.detailLabel}>CONDIZIONE</Text><View style={styles.conditionRow}>{CONDITIONS.map(v=><TouchableOpacity key={v} onPress={()=>void changeCollectionCondition(v)} style={collectionDetail.condition===v?styles.conditionOn:styles.conditionOff}><Text style={collectionDetail.condition===v?styles.conditionOnText:styles.conditionOffText}>{v}</Text></TouchableOpacity>)}</View>
       <Text style={styles.detailLabel}>VALORE PER COPIA</Text><Text style={styles.modalPrice}>{money(estimateCardValueEUR(collectionDetail.priceEUR,collectionDetail.condition))}</Text>
