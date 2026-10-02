@@ -8,10 +8,10 @@ export type InspectionStep = {
 };
 
 export const PROFESSIONAL_INSPECTION_STEPS: InspectionStep[] = [
-  { purpose: "front", title: "Fronte", instruction: "Inquadra tutta la carta, parallela al telefono, senza tagliare i bordi." },
+  { purpose: "front", title: "Fronte", instruction: "Inquadra tutta la carta, parallela al telefono, senza tagliare i bordi. Mantieni fuoco e luce uniformi: questa foto serve anche per la centratura." },
   { purpose: "back", title: "Retro", instruction: "Gira la carta e acquisisci tutto il retro con la stessa cura." },
-  { purpose: "surface_close", title: "Superficie ravvicinata", instruction: "Avvicinati per mostrare micro-graffi, righe, macchie e difetti di stampa." },
-  { purpose: "surface_angle", title: "Superficie inclinata", instruction: "Inclina leggermente il telefono per far emergere riflessi, graffi, pieghe e dent." },
+  { purpose: "surface_close", title: "Superficie ravvicinata", instruction: "Avvicinati per mostrare micro-graffi, righe, puntini, macchie e difetti di stampa. Evita il flash diretto." },
+  { purpose: "surface_angle", title: "Superficie inclinata", instruction: "Inclina leggermente telefono e carta per distinguere graffi, pieghe e dent dai normali riflessi della finitura holo." },
   { purpose: "corner_tl", title: "Angolo alto sinistro", instruction: "Avvicinati all'angolo e mantieni il dettaglio perfettamente a fuoco." },
   { purpose: "corner_tr", title: "Angolo alto destro", instruction: "Avvicinati all'angolo e mantieni il dettaglio perfettamente a fuoco." },
   { purpose: "corner_bl", title: "Angolo basso sinistro", instruction: "Avvicinati all'angolo e mantieni il dettaglio perfettamente a fuoco." },
@@ -26,8 +26,8 @@ export function getInspectionRetryMessage(
   purpose: InspectionPhoto["purpose"],
   quality: number,
 ) {
-  if (quality >= 75) return undefined;
-  if (quality < 45) return "Foto insufficiente: riprova piu vicino, con piu luce e mettendo a fuoco il dettaglio.";
+  if (quality >= 82) return undefined;
+  if (quality < 45) return "Foto insufficiente: riprova più vicino, con luce diffusa e mettendo a fuoco il dettaglio.";
   if (purpose.startsWith("corner_")) return "Angolo poco leggibile: avvicinati e mantieni il telefono fermo.";
   if (purpose.startsWith("edge_")) return "Bordo poco leggibile: avvicinati e illumina leggermente il dettaglio.";
   if (purpose === "surface_angle") return "Serve piu dettaglio: cambia leggermente l'angolazione per far emergere la superficie.";
