@@ -5,7 +5,7 @@ import {SaveFormat} from 'expo-image-manipulator';
 
 type Props={uri:string;onCancel:()=>void;onConfirm:(uri:string)=>void|Promise<void>};
 type Crop={left:number;top:number;right:number;bottom:number};
-const pct=(n:number)=>(n*100).toFixed(2)+'%';
+const pct=(n:number):`${number}%`=>(n*100).toFixed(2)+'%' as `${number}%`;
 
 export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
   const [crop,setCrop]=useState<Crop>({left:.012,top:.012,right:.988,bottom:.988});
