@@ -78,7 +78,7 @@ export default function App(){
   const uniqueSets=new Set(collection.map(c=>c.setId||c.setName).filter(Boolean)).size;
 
   const refreshCollection=async()=>setCollection(await loadCollection());
-  const ownedQty=(id:string)=>collection.filter(c=>c.id===id).reduce((n,c)=>n+c.quantity,0);
+  const ownedQty=(id:string)=>collection.filter(c=>c.id===id||c.id.startsWith(id+'::')).reduce((n,c)=>n+c.quantity,0);
   const addCard=async(card:CatalogCard,selectedCondition:Condition='Da verificare',scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>{await addToCollection(card,selectedCondition,1,scanImage,backImage,visualAnalysis,professionalAnalysis);await refreshCollection()};
   const conditionSelector=<View style={styles.conditionBox}><Text style={styles.kicker}>CONDIZIONE PER NUOVE CARTE</Text><View style={styles.conditionRow}>{CONDITIONS.map(c=><TouchableOpacity key={c} onPress={()=>setCondition(c)} style={condition===c?styles.conditionOn:styles.conditionOff}><Text style={condition===c?styles.conditionOnText:styles.conditionOffText}>{c}</Text></TouchableOpacity>)}</View><Text style={styles.muted}>Il valore stimato usa il prezzo base disponibile e il coefficiente della condizione selezionata. Played non viene mai conteggiata come Mint/NM.</Text></View>;
   const openSet=async(s:CatalogSet)=>{setsScrollYRef.current=setsScrollY;setSelectedSet(s);setLoading(true);try{setCards(s.game==='pokemon'?await getPokemonSetCards(String(s.sourceId||s.id).replace(/^\w+:/,''),(s.language as any)||'en'):await getYugiohSetCards(s.sourceId||s.name))}catch{setCards([])}finally{setLoading(false)}};
@@ -151,9 +151,10 @@ export default function App(){
     }
     return Array.from(map.values()).map(g=>{
       const query=collectionQuery.trim().toLowerCase();
+      const setMatches=query&&g.setName.toLowerCase().includes(query);
       const visible=g.cards.filter(c=>{
         if(!query)return true;
-        return String(c.name||'').toLowerCase().includes(query)||String(c.number||'').toLowerCase().includes(query)||String(c.setName||g.setName).toLowerCase().includes(query);
+        return setMatches||String(c.name||'').toLowerCase().includes(query)||String(c.number||'').toLowerCase().includes(query)||String(c.setName||g.setName).toLowerCase().includes(query);
       });
       const sorted=[...visible].sort((a,b)=>{
         const ownedA=collection.find(x=>x.id===a.id),ownedB=collection.find(x=>x.id===b.id);
@@ -169,7 +170,7 @@ export default function App(){
       });
       const ownedUnique=g.cards.filter(c=>ownedQty(c.id)>0).length;
       return {...g,cards:sorted,ownedUnique,missing:Math.max(0,(g.expected||g.cards.length)-ownedUnique)};
-    }).filter(g=>!collectionQuery.trim()||g.setName.toLowerCase().includes(collectionQuery.trim().toLowerCase())||g.cards.length>0)
+    }).filter(g=>!collectionQuery.trim()||g.cards.length>0)
       .sort((a,b)=>a.setName.localeCompare(b.setName,'it',{sensitivity:'base'}));
   },[collection,collectionCatalog,collectionQuery,collectionSort,game]);
   const collectionTotals=useMemo(()=>({ownedUnique:collectionGroups.reduce((n,g)=>n+g.ownedUnique,0),expected:collectionGroups.reduce((n,g)=>n+(g.expected||g.cards.length),0),missing:collectionGroups.reduce((n,g)=>n+g.missing,0)}),[collectionGroups]);
