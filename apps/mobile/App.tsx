@@ -58,19 +58,21 @@ export default function App(){
     setDetailCard(c);setDetailVariants([]);setSelectedVariantId(null);setDetailLoading(true);
     try{
       if(c.game==='pokemon'){
-        const data=await (await fetch('https://api.tcgdex.net/v2/en/cards/'+encodeURIComponent(c.id))).json();
-        const baseCards=c.setId?await getPokemonSetCards(c.setId):[c];
+        const lang=(c.language as any)||'en';
+        const rawId=c.sourceId||c.id;
+        const data=await (await fetch('https://api.tcgdex.net/v2/'+lang+'/cards/'+encodeURIComponent(rawId))).json();
+        const baseCards=c.setId?await getPokemonSetCards(c.setId,lang):[c];
         const siblings=baseCards.filter(x=>x.name.toLowerCase()===c.name.toLowerCase());
         if(siblings.length>1){
           const enriched=await Promise.all(siblings.map(async(s)=>{
             try{
-              const d=await (await fetch('https://api.tcgdex.net/v2/en/cards/'+encodeURIComponent(s.id))).json();
+              const d=await (await fetch('https://api.tcgdex.net/v2/'+lang+'/cards/'+encodeURIComponent(s.sourceId||s.id))).json();
               const cm=d.pricing?.cardmarket||{};const tp=d.pricing?.tcgplayer||{};
               const holo=/holo/i.test(String(d.rarity||''))||/^h/i.test(String(s.number||''));
               return {id:s.id,cardId:s.id,number:s.number,setId:s.setId,label:(holo?'Holo':'Standard')+' · '+s.number,priceEUR:Number(holo?cm['avg-holo']??cm.avg:cm.avg)||undefined,priceUSD:Number(holo?tp.holofoil?.marketPrice??tp.normal?.marketPrice:tp.normal?.marketPrice)||undefined,image:s.image};
             }catch{return {id:s.id,cardId:s.id,number:s.number,setId:s.setId,label:(/^h/i.test(String(s.number||''))?'Holo':'Standard')+' · '+s.number,image:s.image}}
           }));
-          setDetailVariants(enriched);const current=enriched.find(v=>v.id===c.id)||enriched[0];if(current)setSelectedVariantId(current.id);
+          setDetailVariants(enriched);const current=enriched.find(v=>v.id===c.id||v.cardId===c.id)||enriched[0];if(current)setSelectedVariantId(current.id);
         }else{
           const p=data.pricing||{};const cm=p.cardmarket||{};const tp=p.tcgplayer||{};
           const variants=[

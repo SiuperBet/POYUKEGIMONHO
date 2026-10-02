@@ -174,8 +174,9 @@ export async function hydrateCardDates(game:Game,cards:CatalogCard[]):Promise<Ca
     return cards.map(c=>({...c,releaseDate:c.releaseDate||byName.get(c.setName||'')}));
   }
   const ids=[...new Set(cards.map(c=>c.setId).filter(Boolean) as string[])];
+  const languageBySet=new Map(cards.filter(c=>c.setId).map(c=>[c.setId as string,String(c.language||'en')]));
   const details=await mapWithConcurrency(ids,6,async(id)=>{
-    try{const d=await getJson<any>('https://api.tcgdex.net/v2/en/sets/'+encodeURIComponent(id));return [id,typeof d.releaseDate==='string'?d.releaseDate:undefined] as const}catch{return [id,undefined] as const}
+    try{const lang=languageBySet.get(id)||'en';const d=await getJson<any>('https://api.tcgdex.net/v2/'+lang+'/sets/'+encodeURIComponent(id));return [id,typeof d.releaseDate==='string'?d.releaseDate:(d.releaseDate?.[lang]||d.releaseDate?.en)] as const}catch{return [id,undefined] as const}
   });
   const dates=new Map(details);
   return cards.map(c=>({...c,releaseDate:c.releaseDate||dates.get(c.setId||'')}));
