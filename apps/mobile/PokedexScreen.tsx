@@ -121,6 +121,18 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
   };
 
   useEffect(()=>{
+    const urls=cards.map(c=>c.image).filter((u):u is string=>Boolean(u)).slice(0,24);
+    if(!urls.length)return;
+    let cancelled=false;
+    (async()=>{
+      for(let i=0;i<urls.length&&!cancelled;i+=8){
+        await Promise.all(urls.slice(i,i+8).map(u=>Image.prefetch(u).catch(()=>false)));
+      }
+    })();
+    return()=>{cancelled=true};
+  },[cards]);
+
+  useEffect(()=>{
     if(!selected)return;
     let active=true;
     setCards([]);setCardsError(false);setCardsLoading(true);
@@ -147,7 +159,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
           <Text style={[styles.cardName,!owned&&styles.cardNameMissing]} numberOfLines={2}>{item.name}</Text>
           <Text style={styles.cardMeta}>{item.number||'—'}{item.rarity?' · '+item.rarity:''}</Text>
           <Text style={styles.cardSet} numberOfLines={1}>{item.setName||item.sourceId?.split('-')[0]||item.setId||'Set'}</Text>
-          <Text style={styles.cardSet} numberOfLines={1}>{item.language||'en'}{item.variantLabel?' · '+item.variantLabel:''}</Text>
+          <Text style={styles.cardSet} numberOfLines={1}>{item.language==='it'?'IT':item.language==='en'?'EN':String(item.language||'IT').toUpperCase()}{item.variantLabel?' · '+item.variantLabel:''}</Text>
         </TouchableOpacity>;
       }}/>}
     </View>;
