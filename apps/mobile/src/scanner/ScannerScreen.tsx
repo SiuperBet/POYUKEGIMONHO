@@ -23,7 +23,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
   const [selectedCondition,setSelectedCondition]=useState<Condition>('NM');const [conditionTouched,setConditionTouched]=useState(false);const [visualAnalysis,setVisualAnalysis]=useState<VisualAnalysis|null>(null);
   const [collectionSaved,setCollectionSaved]=useState(false);
   const [gradedId,setGradedId]=useState<string|undefined>();
-  const [scanGeometry,setScanGeometry]=useState<{width:number;height:number;aspect:number;ok:boolean}|null>(null);
+  const [scanGeometry,setScanGeometry]=useState<{width:number;height:number;aspect:number;ok:boolean;centering?:{left:number;right:number;top:number;bottom:number}}|null>(null);
   const [game,setGame]=useState<'pokemon'|'yugioh'>('pokemon');
   const [professionalAnalysis,setProfessionalAnalysis]=useState<ProfessionalAnalysis|null>(null);
   const [recognizedVariants,setRecognizedVariants]=useState<CatalogCard[]>([]);
@@ -87,7 +87,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
         setLastPhoto(uri);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);
         await new Promise<void>(resolve=>RNImage.getSize(uri,(width,height)=>{const aspect=width/Math.max(1,height);setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});resolve();},()=>resolve()));
-        setMessage('✓ 4 lati rilevati • 4 angoli collegati • prospettiva corretta');
+        setMessage('✓ Carta raddrizzata • ora controlliamo la centratura sui 4 margini');
         setEditorOpen(true);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }else setMessage('Nessuna carta acquisita.');
@@ -139,7 +139,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
 
   const chooseCondition=async(condition:Condition)=>{setConditionTouched(true);setSelectedCondition(condition);if(gradedId)await onConditionSelected?.(gradedId,condition);setCollectionSaved(false)};
   const saveCollection=async()=>{const card=selectedRecognizedCard||recognition?.card;if(!card||!onSaveCollection)return;await onSaveCollection(card,selectedCondition,lastPhoto||undefined,backPhoto||undefined,visualAnalysis||undefined,professionalAnalysis||undefined);if(gradedId){await onConditionSelected?.(gradedId,selectedCondition);await onCardSelected?.(gradedId,card);}setCollectionSaved(true);setMessage('Carta salvata nella collezione con la condizione selezionata.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)};
-  const retry=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
+  const retry=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. Il rilevamento automatico raddrizza la carta e controlla poi la centratura.');};
   const rescan=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);void smartScan();};
 
   return <ScrollView style={styles.root} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={true}>\n  <View>
@@ -152,7 +152,14 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
       <View style={styles.nativeBadge}><Text style={styles.nativeBadgeText}>NATIVO</Text></View>
     </View>
 
-    {editorOpen&&lastPhoto&&<CardEdgeEditor uri={lastPhoto} onCancel={()=>{setEditorOpen(false);void processCapturedPhoto(lastPhoto);}} onConfirm={async uri=>{setEditorOpen(false);await processCapturedPhoto(uri);}}/>}
+    {editorOpen&&lastPhoto&&<CardEdgeEditor uri={lastPhoto}
+      onCancel={()=>{setEditorOpen(false);void processCapturedPhoto(lastPhoto);}}
+      onConfirm={async(uri,centering)=>{
+        setScanGeometry(prev=>prev?{...prev,centering}:prev);
+        setEditorOpen(false);
+        await processCapturedPhoto(uri);
+      }}
+    />}
     <View style={styles.stage}>
       {lastPhoto?
         <Image source={{uri:lastPhoto}} style={styles.preview} resizeMode="contain"/>:
@@ -186,7 +193,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
 
     {lastPhoto&&<View style={styles.resultPanel}>
       <View style={styles.gameRow}><Text style={styles.gameLabel}>GIOCO</Text><TouchableOpacity onPress={()=>setGame('pokemon')} style={game==='pokemon'?styles.gameOn:styles.gameOff}><Text style={game==='pokemon'?styles.gameOnText:styles.gameOffText}>Pokémon</Text></TouchableOpacity><TouchableOpacity onPress={()=>setGame('yugioh')} style={game==='yugioh'?styles.gameOn:styles.gameOff}><Text style={game==='yugioh'?styles.gameOnText:styles.gameOffText}>Yu-Gi-Oh!</Text></TouchableOpacity></View>
-      <View style={styles.edgeVerified}><View style={styles.edgeDot}/><View style={styles.flex}><Text style={styles.edgeTitle}>BORDO CARTA VERIFICATO</Text><Text style={styles.edgeCopy}>{scanGeometry?.ok?'4 lati • 4 angoli • proporzione corretta':'Proporzione da verificare prima del salvataggio'}</Text></View><Text style={styles.edgeCheck}>✓</Text></View>
+      <View style={styles.edgeVerified}><View style={styles.edgeDot}/><View style={styles.flex}><Text style={styles.edgeTitle}>BORDO CARTA VERIFICATO</Text><Text style={styles.edgeCopy}>{scanGeometry?.centering?'centratura '+scanGeometry.centering.left+'% / '+scanGeometry.centering.right+'% · '+scanGeometry.centering.top+'% / '+scanGeometry.centering.bottom+'%':(scanGeometry?.ok?'carta raddrizzata • centratura da verificare':'Proporzione da verificare prima del salvataggio')}</Text></View><Text style={styles.edgeCheck}>✓</Text></View>
       {(recognition?.card||selectedRecognizedCard)&&<View style={styles.recognitionBox}><Text style={styles.resultTitle}>{recognition?.status==='matched'?'Riconoscimento':'Carta selezionata'}</Text><Text style={styles.recognizedName}>{(selectedRecognizedCard||recognition?.card)?.name}</Text><Text style={styles.resultCopy}>{(selectedRecognizedCard||recognition?.card)?.setName||'Set non identificato'}{(selectedRecognizedCard||recognition?.card)?.number?' · '+(selectedRecognizedCard||recognition?.card)?.number:''}{(selectedRecognizedCard||recognition?.card)?.language?' · '+(selectedRecognizedCard||recognition?.card)?.language:''}</Text>{recognition&&<Text style={styles.confidence}>Confidenza {Math.round(recognition.confidence*100)}%{recognition.number?' · numero rilevato '+recognition.number:''}</Text>}</View>}{recognition&&recognition.candidates.length>0&&<View style={styles.candidatesBox}><Text style={styles.printingTitle}>{recognition.status==='matched'?'ALTRE CORRISPONDENZE':'CARTE PROPOSTE'}</Text><Text style={styles.printingHint}>Sono risultati reali del catalogo. Tocca la carta che corrisponde alla stampa che possiedi.</Text><View style={styles.candidateRow}>{recognizedVariants.slice(0,8).map(v=><TouchableOpacity key={v.id} style={selectedRecognizedCard?.id===v.id?styles.candidateOn:styles.candidateOff} onPress={async()=>{setSelectedRecognizedCard(v);setRecognition(prev=>prev?{...prev,card:v,status:'matched',confidence:Math.max(prev.confidence,0.55)}:prev);if(gradedId)await onCardSelected?.(gradedId,v);setCollectionSaved(false)}}>{v.image?<Image source={{uri:v.image}} style={styles.candidateImage} resizeMode="contain"/>:null}<Text style={styles.candidateName} numberOfLines={1}>{v.name}</Text><Text style={styles.candidateMeta} numberOfLines={1}>{v.setName||'Set'}{v.number?' · '+v.number:''}</Text><Text style={styles.candidateMeta}>{v.language||'en'}{v.variantLabel?' · '+v.variantLabel:''}</Text></TouchableOpacity>)}</View></View>}{recognizedVariants.length>1&&<View style={styles.printingBox}><Text style={styles.printingTitle}>STAMPA / NUMERO RILEVATO</Text><Text style={styles.printingHint}>Se la carta ha più stampe, scegli quella che possiedi. Il numero collezionabile resta sempre distinto.</Text><View style={styles.printingRow}>{recognizedVariants.map(v=><TouchableOpacity key={v.id} style={selectedRecognizedCard?.id===v.id?styles.printingOn:styles.printingOff} onPress={async()=>{setSelectedRecognizedCard(v);if(gradedId)await onCardSelected?.(gradedId,v);setCollectionSaved(false)}}><Text style={selectedRecognizedCard?.id===v.id?styles.printingOnText:styles.printingOffText}>{v.number||'—'}</Text><Text style={selectedRecognizedCard?.id===v.id?styles.printingSubOn:styles.printingSubOff}>{v.variantLabel||(/H/i.test(String(v.number||''))?'Holo':'Stampa')}</Text></TouchableOpacity>)}</View></View>}
       <Text style={styles.resultTitle}>Carta acquisita e raddrizzata</Text>
       {visualAnalysis&&<View style={styles.analysisBox}><View style={styles.analysisHead}><Text style={styles.analysisTitle}>GRADING VISIVO ASSISTITO</Text><Text style={styles.analysisScore}>{visualAnalysis.score}/100</Text></View><Text style={styles.analysisSuggestion}>Suggerimento: <Text style={styles.analysisStrong}>{visualAnalysis.condition}</Text> · confidenza {visualAnalysis.confidence}%{visualAnalysis.hasBack?' · fronte + retro':' · solo fronte'}</Text><View style={styles.defectRow}>{visualAnalysis.defects.filter(d=>(d.score??(d.severity==='high'?60:d.severity==='medium'?35:15))>=28).map(d=><View key={d.id} style={styles.defectChip}><Text style={styles.defectChipText}>{d.type.replace('_',' ')} {Math.round(d.score??(d.severity==='high'?60:d.severity==='medium'?35:15))}</Text></View>)}</View><Text style={styles.analysisNote}>{visualAnalysis.notes[0]}</Text></View>}
