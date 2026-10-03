@@ -1,5 +1,8 @@
-import React,{useMemo,useRef,useState} from 'react';
-import {PanResponder,StyleSheet,Text,TouchableOpacity,View,Image,LayoutChangeEvent} from 'react-native';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import {PanResponder,StyleSheet,Text,TouchableOpacity,View,Image,LayoutChangeEvent,ActivityIndicator} from 'react-native';
+import * as ImageManipulator from 'expo-image-manipulator';
+import {SaveFormat} from 'expo-image-manipulator';
+import {Skia,ColorType,AlphaType} from '@shopify/react-native-skia';
 
 type MarginKey='left'|'right'|'top'|'bottom';
 type Margins={left:number;right:number;top:number;bottom:number};
@@ -13,6 +16,21 @@ type Props={
 const clamp=(v:number,min=0.01,max=0.35)=>Math.max(min,Math.min(max,v));
 const snap=(v:number)=>Math.round(v*200)/200;
 
+function lum(r:number,g:number,b:number){return .299*r+.587*g+.114*b;}
+async function detectPrintedMargins(uri:string):Promise<Margins>{
+  const small=await ImageManipulator.manipulateAsync(uri,[{resize:{width:520}}],{compress:.82,format:SaveFormat.JPEG,base64:true});
+  if(!small.base64)throw new Error('Immagine non disponibile');
+  const image=Skia.Image.MakeImageFromEncoded(Skia.Data.fromBase64(small.base64));
+  if(!image)throw new Error('Decodifica immagine fallita');
+  const width=image.width(),height=image.height();
+  const pixels=image.readPixels(0,0,{width,height,colorType:ColorType.RGBA_8888,alphaType:AlphaType.Unpremul});
+  if(!pixels)throw new Error('Pixel non disponibili');
+  const at=(x:number,y:number)=>{const xx=Math.max(0,Math.min(width-1,x)),yy=Math.max(0,Math.min(height-1,y)),i=(yy*width+xx)*4;return lum(pixels[i],pixels[i+1],pixels[i+2]);};
+  const score=(side:MarginKey,p:number)=>{let s=0,n=0;if(side==='top'||side==='bottom'){const y=side==='top'?p:height-1-p;for(let x=Math.floor(width*.22);x<width*.78;x+=2){s+=Math.abs(at(x,y)-at(x,y+(side==='top'?1:-1)));n++;}}else{const x=side==='left'?p:width-1-p;for(let y=Math.floor(height*.22);y<height*.78;y+=2){s+=Math.abs(at(x,y)-at(x+(side==='left'?1:-1),y));n++;}}return s/Math.max(1,n);};
+  const scan=(side:MarginKey,total:number)=>{let best=total*.055,bestScore=-1;for(let p=Math.floor(total*.02);p<=Math.floor(total*.24);p+=2){const s=score(side,p);if(s>bestScore){bestScore=s;best=p;}}return clamp(best/total);};
+  return {left:scan('left',width),right:scan('right',width),top:scan('top',height),bottom:scan('bottom',height)};
+}
+
 export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
   // This is a centering guide, not a corner/perspective editor. The native document
   // scanner has already found and rectified the card; here we inspect the distance
@@ -20,7 +38,10 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
   const [margins,setMargins]=useState<Margins>({left:.055,right:.055,top:.055,bottom:.055});
   const [box,setBox]=useState({width:1,height:1});
   const [working,setWorking]=useState(false);
+  const [detecting,setDetecting]=useState(true); const [detected,setDetected]=useState(false);
   const start=useRef(margins);
+
+  useEffect(()=>{let alive=true;setDetecting(true);detectPrintedMargins(uri).then(next=>{if(alive){setMargins(next);setDetected(true);}}).catch(()=>{if(alive)setDetected(false);}).finally(()=>{if(alive)setDetecting(false);});return()=>{alive=false};},[uri]);
 
   const moveMargin=(key:MarginKey,delta:number)=>{
     setMargins(prev=>({...prev,[key]:snap(clamp(start.current[key]+delta))}));
@@ -70,9 +91,9 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
   return <View style={styles.root}>
     <Text style={styles.title}>Controllo centratura carta</Text>
     <Text style={styles.hint}>
-      Qui non selezioniamo gli angoli: la carta è già stata rilevata e raddrizzata.
-      Controlliamo invece la distanza tra il bordo della carta e il bordo stampato,
-      separatamente a sinistra, destra, sopra e sotto.
+      Il rilevatore analizza automaticamente i quattro lati della cornice stampata.
+      La carta è già stata raddrizzata dallo scanner: controlliamo solo la distanza
+      tra bordo fisico e bordo stampato, senza effettuare un secondo crop.
     </Text>
 
     <View style={styles.canvas} onLayout={layout}>
@@ -135,6 +156,8 @@ const styles=StyleSheet.create({
   image:{...StyleSheet.absoluteFillObject},
   outerFrame:{...StyleSheet.absoluteFillObject,borderWidth:2,borderColor:'#b8ff5a',borderRadius:12},
   printFrame:{position:'absolute',borderWidth:2,borderColor:'#fff',borderStyle:'dashed',borderRadius:4},
+  detectBadge:{position:'absolute',left:10,top:10,backgroundColor:'#10130c',borderRadius:10,paddingHorizontal:8,paddingVertical:6,flexDirection:'row',alignItems:'center',gap:5},
+  detectText:{color:'#d8ff9c',fontSize:8,fontWeight:'900'},
   handle:{position:'absolute',width:28,height:28,borderRadius:14,backgroundColor:'#10130c',borderWidth:2,borderColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
   leftHandle:{left:4},rightHandle:{right:4},topHandle:{top:4},bottomHandle:{bottom:4},
   handleDot:{width:8,height:8,borderRadius:4,backgroundColor:'#b8ff5a'},
