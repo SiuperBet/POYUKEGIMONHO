@@ -123,8 +123,9 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
       const {analyzeProfessionalInspection}=await import('../data/visualGrading');
       const analysis=await analyzeProfessionalInspection(photos);
       setProfessionalAnalysis(analysis);
+      if(analysis.condition&&!conditionTouched){setSelectedCondition(analysis.condition);if(gradedId)await onConditionSelected?.(gradedId,analysis.condition);}
       if(gradedId)await onProfessionalAnalysis?.(gradedId,analysis);
-      setMessage('✓ Foto aggiuntiva acquisita • analisi professionale aggiornata');
+      setMessage('✓ Foto aggiuntiva acquisita • valutazione automatica: '+(analysis.condition||'Da verificare')+' · '+(analysis.overall??'—')+'/100');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }catch(errorValue){
       const cancelled=/cancel|dismiss|back|annull/i.test(String(errorValue??''));
