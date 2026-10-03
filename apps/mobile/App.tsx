@@ -165,17 +165,6 @@ export default function App(){
         setDetailVariants(variants);
         const preferred=variants.find(v=>String(v.language)===currentLang&&v.variantId===String(c.variantId||'normal'))||variants.find(v=>String(v.language)==='it')||variants[0];
         if(preferred)setSelectedVariantId(preferred.id);
-else{
-          const p=data.pricing||{};const cm=p.cardmarket||{};const tp=p.tcgplayer||{};
-          const variants=[
-            data.variants?.normal?{id:c.id+'::normal',label:'Standard',priceEUR:Number(cm.avg)||undefined,priceUSD:Number(tp.normal?.marketPrice)||undefined,image:c.image}:null,
-            data.variants?.reverse?{id:c.id+'::reverse',label:'Reverse Holo',priceEUR:Number(cm.avg)||undefined,priceUSD:Number(tp.reverse?.marketPrice)||undefined,image:c.image}:null,
-            data.variants?.holo?{id:c.id+'::holo',label:'Holo',priceEUR:Number(cm['avg-holo'])||undefined,priceUSD:Number(tp.holofoil?.marketPrice)||undefined,image:c.image}:null,
-            data.variants?.firstEdition?{id:c.id+'::firstEdition',label:'1ª Edizione',priceEUR:Number(cm.avg)||undefined,priceUSD:Number(tp['1st-edition']?.marketPrice)||undefined,image:c.image}:null,
-            data.variants?.wPromo?{id:c.id+'::wPromo',label:'Promo',priceEUR:Number(cm.avg)||undefined,priceUSD:Number(tp.normal?.marketPrice)||undefined,image:c.image}:null
-          ].filter(Boolean) as Array<{id:string;label:string;priceEUR?:number;priceUSD?:number;image?:string}>;
-          setDetailVariants(variants);if(variants.length===1)setSelectedVariantId(variants[0].id);
-        }
       }else{
         const data=await (await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php?id='+encodeURIComponent(c.id.split('::')[0]))).json();
         const card=data.data?.[0];const rows=(card?.card_sets||[]).filter((x:any)=>!c.setName||x.set_name===c.setName);
