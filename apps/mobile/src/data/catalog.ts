@@ -248,7 +248,12 @@ export async function getPokemonCardsForPokemon(pokemonName:string):Promise<Cata
         if(lang&&value)languageNames.set(lang,value);
       }
     }catch{}
-    const languages=[...languageNames.entries()];
+    // The default mobile catalog is Italian-first. English is kept only as a fallback
+    // for cards that do not have an Italian printing in the free catalog.
+    const languages:Array<[PokemonLanguage,string]>=[
+      ['it',languageNames.get('it')||normalized],
+      ['en',normalized]
+    ];
     const responses=await mapWithConcurrency(languages,4,async([language,name])=>{
       const all:any[]=[];
       for(let page=1;page<=10;page++){
