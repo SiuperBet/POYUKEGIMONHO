@@ -52,7 +52,7 @@ export default function App(){
   const [setsScrollY,setSetsScrollY]=useState(0);
   const setsScrollRef=useRef<ScrollView>(null);
   const setsScrollYRef=useRef(0);
-  const [detailCard,setDetailCard]=useState<CatalogCard|null>(null);const [detailVariants,setDetailVariants]=useState<Array<{id:string;label:string;priceEUR?:number;priceUSD?:number;image?:string;cardId?:string;number?:string;setId?:string}>>([]);const [selectedVariantId,setSelectedVariantId]=useState<string|null>(null);const [detailLoading,setDetailLoading]=useState(false);const [gradedDetail,setGradedDetail]=useState<GradedItem|null>(null);const [collectionDetail,setCollectionDetail]=useState<CollectionItem|null>(null);const [collectionDetailIndex,setCollectionDetailIndex]=useState(0);const [pokedexOpen,setPokedexOpen]=useState(false);const [gradingResume,setGradingResume]=useState<GradedItem|null>(null);const collectionSwipeStartX=useRef(0);
+  const [detailCard,setDetailCard]=useState<CatalogCard|null>(null);const [detailVariants,setDetailVariants]=useState<Array<{id:string;label:string;priceEUR?:number;priceUSD?:number;image?:string;cardId?:string;number?:string;setId?:string;variantId?:string;language?:string}>>([]);const [selectedVariantId,setSelectedVariantId]=useState<string|null>(null);const [detailLoading,setDetailLoading]=useState(false);const [gradedDetail,setGradedDetail]=useState<GradedItem|null>(null);const [collectionDetail,setCollectionDetail]=useState<CollectionItem|null>(null);const [collectionDetailIndex,setCollectionDetailIndex]=useState(0);const [pokedexOpen,setPokedexOpen]=useState(false);const [gradingResume,setGradingResume]=useState<GradedItem|null>(null);const collectionSwipeStartX=useRef(0);
 
   useEffect(()=>{void Promise.all([loadCollection().then(setCollection),loadGraded().then(setGraded)])},[]);
   useEffect(()=>{if(tab!=='sets')return;setLoading(true);getSets(game).then(setSets).catch(()=>setSets([])).finally(()=>setLoading(false))},[tab,game]);
@@ -72,8 +72,12 @@ export default function App(){
     mapWithConcurrency(groups,3,async c=>{
       const key=(c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en');
       try{
+        const storedLanguage=String(c.language||'en') as any;
+        const displayLanguage=c.game==='pokemon'
+          ? (['ja','zh-cn','zh-tw'].includes(storedLanguage)?storedLanguage:'it')
+          : storedLanguage;
         const cards=c.game==='pokemon'
-          ? (masterSetMode ? await getPokemonMasterSetCards(String(c.setId||'').replace(/^\w+:/,''),(c.language as any)||'en') : await getPokemonSetCards(String(c.setId||'').replace(/^\w+:/,''),(c.language as any)||'en'))
+          ? (masterSetMode ? await getPokemonMasterSetCards(String(c.setId||'').replace(/^\w+:/,''),displayLanguage) : await getPokemonSetCards(String(c.setId||'').replace(/^\w+:/,''),displayLanguage))
           : await getYugiohSetCards(c.setId||c.setName||'');
         return [key,cards] as const;
       }catch{return [key,[] as CatalogCard[]] as const}
@@ -86,12 +90,24 @@ export default function App(){
     return()=>{cancelled=true};
   },[tab,collection,masterSetMode]);
 
+  useEffect(()=>{
+    const urls=[...cards,...Object.values(collectionCatalog).flat()].map(c=>c.image).filter((u):u is string=>Boolean(u)).slice(0,36);
+    if(!urls.length)return;
+    let cancelled=false;
+    (async()=>{
+      for(let i=0;i<urls.length&&!cancelled;i+=8){
+        await Promise.all(urls.slice(i,i+8).map(u=>Image.prefetch(u).catch(()=>false)));
+      }
+    })();
+    return()=>{cancelled=true};
+  },[cards,collectionCatalog]);
   const totalValue=useMemo(()=>collection.reduce((sum,c)=>sum+estimateCardValueEUR(c.priceEUR,c.condition||'NM')*c.quantity,0),[collection]);
   const conditionTotals=useMemo(()=>CONDITIONS.map(c=>({condition:c,value:collection.filter(x=>x.condition===c).reduce((sum,x)=>sum+estimateCardValueEUR(x.priceEUR,c)*x.quantity,0),quantity:collection.filter(x=>x.condition===c).reduce((sum,x)=>sum+x.quantity,0)})).filter(x=>x.quantity>0),[collection]);
   const uniqueSets=new Set(collection.map(c=>c.setId||c.setName).filter(Boolean)).size;
 
   const refreshCollection=async()=>setCollection(await loadCollection());
-  const ownedQty=(id:string)=>collection.filter(c=>c.id===id||c.id.startsWith(id+'::')).reduce((n,c)=>n+c.quantity,0);
+  const printingIdentity=(id:string)=>String(id).replace(/^[a-z-]+::/,'');
+  const ownedQty=(id:string)=>collection.filter(c=>printingIdentity(c.id)===printingIdentity(id)).reduce((n,c)=>n+c.quantity,0);
   const addCard=async(card:CatalogCard,selectedCondition:Condition='Da verificare',scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>{await addToCollection(card,selectedCondition,1,scanImage,backImage,visualAnalysis,professionalAnalysis);await refreshCollection()};
   const conditionSelector=<View style={styles.conditionBox}><Text style={styles.kicker}>CONDIZIONE PER NUOVE CARTE</Text><View style={styles.conditionRow}>{CONDITIONS.map(c=><TouchableOpacity key={c} onPress={()=>setCondition(c)} style={condition===c?styles.conditionOn:styles.conditionOff}><Text style={condition===c?styles.conditionOnText:styles.conditionOffText}>{c}</Text></TouchableOpacity>)}</View><Text style={styles.muted}>Il valore stimato usa il prezzo base disponibile e il coefficiente della condizione selezionata. Played non viene mai conteggiata come Mint/NM.</Text></View>;
   const openSet=async(s:CatalogSet)=>{setsScrollYRef.current=setsScrollY;setSelectedSet(s);setLoading(true);try{setCards(s.game==='pokemon'?await getPokemonSetCards(String(s.sourceId||s.id).replace(/^\w+:/,''),(s.language as any)||'en'):await getYugiohSetCards(s.sourceId||s.name))}catch{setCards([])}finally{setLoading(false)}};
@@ -102,22 +118,54 @@ export default function App(){
     setDetailCard(c);setDetailVariants([]);setSelectedVariantId(null);setDetailLoading(true);
     try{
       if(c.game==='pokemon'){
-        const lang=(c.language as any)||'en';
-        const rawId=c.sourceId||c.id;
-        const data=await (await fetch('https://api.tcgdex.net/v2/'+lang+'/cards/'+encodeURIComponent(rawId))).json();
-        const baseCards=c.setId?await getPokemonSetCards(c.setId,lang):[c];
-        const siblings=baseCards.filter(x=>x.name.toLowerCase()===c.name.toLowerCase());
-        if(siblings.length>1){
-          const enriched=await Promise.all(siblings.map(async(s)=>{
-            try{
-              const d=await (await fetch('https://api.tcgdex.net/v2/'+lang+'/cards/'+encodeURIComponent(s.sourceId||s.id))).json();
-              const cm=d.pricing?.cardmarket||{};const tp=d.pricing?.tcgplayer||{};
-              const holo=/holo/i.test(String(d.rarity||''))||/^h/i.test(String(s.number||''));
-              return {id:s.id,cardId:s.id,number:s.number,setId:s.setId,label:(holo?'Holo':'Standard')+' · '+s.number,priceEUR:Number(holo?cm['avg-holo']??cm.avg:cm.avg)||undefined,priceUSD:Number(holo?tp.holofoil?.marketPrice??tp.normal?.marketPrice:tp.normal?.marketPrice)||undefined,image:s.image};
-            }catch{return {id:s.id,cardId:s.id,number:s.number,setId:s.setId,label:(/^h/i.test(String(s.number||''))?'Holo':'Standard')+' · '+s.number,image:s.image}}
-          }));
-          setDetailVariants(enriched);const current=enriched.find(v=>v.id===c.id||v.cardId===c.id)||enriched[0];if(current)setSelectedVariantId(current.id);
-        }else{
+        const currentLang=String(c.language||'it');
+        const rawId=String(c.sourceId||c.id).replace(/^[a-z-]+::/,'').replace(/::[^:]+$/,'');
+        const languages=[...new Set([currentLang,'it','en'])];
+        const languageLabel=(lang:string)=>POKEMON_LANGUAGE_LABEL[lang as keyof typeof POKEMON_LANGUAGE_LABEL]||lang.toUpperCase();
+        const variants:Array<{id:string;label:string;priceEUR?:number;priceUSD?:number;image?:string;cardId?:string;number?:string;setId?:string;variantId?:string;language?:string}>=[];
+
+        for(const lang of languages){
+          const data=await (await fetch('https://api.tcgdex.net/v2/'+lang+'/cards/'+encodeURIComponent(rawId))).json().catch(()=>null);
+          if(!data)continue;
+          const defs=[
+            ['normal','Standard',data.variants?.normal],
+            ['reverse','Reverse Holo',data.variants?.reverse],
+            ['holo','Holo',data.variants?.holo],
+            ['firstEdition','1ª Edizione',data.variants?.firstEdition],
+            ['wPromo','Promo',data.variants?.wPromo]
+          ] as const;
+          const cm=data.pricing?.cardmarket||{};const tp=data.pricing?.tcgplayer||{};
+          for(const [variantId,label,available] of defs){
+            if(!available)continue;
+            const priceEUR=variantId==='holo'?Number(cm['avg-holo'])||Number(cm.avg)||undefined:variantId==='reverse'?Number(tp.reverse?.marketPrice)||Number(cm.avg)||undefined:Number(cm.avg)||undefined;
+            const priceUSD=variantId==='holo'?Number(tp.holofoil?.marketPrice)||undefined:variantId==='reverse'?Number(tp.reverse?.marketPrice)||undefined:Number(tp.normal?.marketPrice)||undefined;
+            variants.push({
+              id:lang+'::'+rawId+'::'+variantId,
+              cardId:pokemonCardId(lang as any,rawId),
+              language:lang,
+              variantId,
+              label:languageLabel(lang)+' · '+label,
+              priceEUR:Number.isFinite(Number(priceEUR))&&Number(priceEUR)>0?Number(priceEUR):undefined,
+              priceUSD:Number.isFinite(Number(priceUSD))&&Number(priceUSD)>0?Number(priceUSD):undefined,
+              image:typeof data.image==='string'&&data.image.length>0?data.image+'/high.webp':c.image,
+              number:numberOf(data.localId)||c.number,
+              setId:data.set?.id||c.setId
+            });
+          }
+        }
+
+        // Fallback to the existing set-level sibling detection if the detailed endpoint has no variant flags.
+        if(!variants.length){
+          const lang=currentLang as any;
+          const baseCards=c.setId?await getPokemonSetCards(c.setId,lang):[c];
+          for(const s of baseCards.filter(x=>x.name.toLowerCase()===c.name.toLowerCase())){
+            variants.push({id:s.id,cardId:s.id,number:s.number,setId:s.setId,label:(s.variantLabel||'Standard')+' · '+s.number,image:s.image,language:String(s.language||lang),variantId:s.variantId});
+          }
+        }
+        setDetailVariants(variants);
+        const preferred=variants.find(v=>String(v.language)===currentLang&&v.variantId===String(c.variantId||'normal'))||variants.find(v=>String(v.language)==='it')||variants[0];
+        if(preferred)setSelectedVariantId(preferred.id);
+else{
           const p=data.pricing||{};const cm=p.cardmarket||{};const tp=p.tcgplayer||{};
           const variants=[
             data.variants?.normal?{id:c.id+'::normal',label:'Standard',priceEUR:Number(cm.avg)||undefined,priceUSD:Number(tp.normal?.marketPrice)||undefined,image:c.image}:null,
@@ -138,7 +186,7 @@ export default function App(){
     finally{setDetailLoading(false)}
   };
   const selectedVariant=detailVariants.find(v=>v.id===selectedVariantId);
-  const selectedManualCard=detailCard&&selectedVariantId?{...detailCard,id:selectedVariant?.cardId||detailCard.id+'::'+selectedVariantId,number:selectedVariant?.number??detailCard.number,setId:selectedVariant?.setId??detailCard.setId,variantId:selectedVariantId,variantLabel:selectedVariant?.label||selectedVariantId,priceEUR:selectedVariant?.priceEUR??detailCard.priceEUR,priceUSD:selectedVariant?.priceUSD??detailCard.priceUSD,image:selectedVariant?.image||detailCard.image} as CatalogCard:detailCard;
+  const selectedManualCard=detailCard&&selectedVariantId?{...detailCard,id:selectedVariant?.cardId?selectedVariant.cardId+'::'+(selectedVariant.variantId||'normal'):detailCard.id+'::'+selectedVariantId,language:selectedVariant?.language||detailCard.language,number:selectedVariant?.number??detailCard.number,setId:selectedVariant?.setId??detailCard.setId,variantId:selectedVariant?.variantId||selectedVariantId,variantLabel:selectedVariant?.label||selectedVariantId,priceEUR:selectedVariant?.priceEUR??detailCard.priceEUR,priceUSD:selectedVariant?.priceUSD??detailCard.priceUSD,image:selectedVariant?.image||detailCard.image} as CatalogCard:detailCard;
   const captureSaved=async(uri:string,card?:CatalogCard)=>{const item:GradedItem={id:Date.now().toString(),image:uri,grade:'Da valutare',score:0,confidence:0,addedAt:new Date().toISOString(),notes:['Scansione salvata. Condizione e difetti possono essere completati successivamente.'],condition:'Da verificare',card};const next=await addGraded(item);setGraded(next);return item.id;};const setScannedCondition=async(id:string,selectedCondition:Condition)=>{const next=graded.map(x=>x.id===id?{...x,condition:selectedCondition}:x);setGraded(next);await saveGraded(next)};const setScannedBack=async(id:string,uri:string)=>{const next=await updateGraded(id,{backImage:uri});setGraded(next)};const setScannedAnalysis=async(id:string,analysis:VisualAnalysis)=>{const next=await updateGraded(id,{visualAnalysis:analysis,grade:analysis.condition,score:analysis.score,confidence:analysis.confidence,notes:analysis.notes,condition:analysis.condition});setGraded(next)};const setScannedProfessional=async(id:string,analysis:ProfessionalAnalysis)=>{const next=await updateGraded(id,{professionalAnalysis:analysis});setGraded(next)};const setScannedCard=async(id:string,card:CatalogCard)=>{const next=await updateGraded(id,{card});setGraded(next)};const removeGraded=async(id:string)=>{const next=await deleteGraded(id);setGraded(next);setGradedDetail(null)};const removeCollection=async(item:CollectionItem)=>{const next=collection.filter(x=>!(x.id===item.id&&x.condition===item.condition));setCollection(next);await saveCollection(next);setCollectionDetail(null)};
   const collectionGroups=useMemo(()=>{
 
@@ -157,7 +205,7 @@ export default function App(){
       const first=collection.find(c=>((c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en'))===key);
       if(!first)continue;
       const g=addGroup(first);
-      const merged=[...g.cards,...cards.filter(c=>!g.cards.some(x=>x.id===c.id))];
+      const merged=[...cards,...g.cards.filter(x=>!cards.some(y=>printingIdentity(y.id)===printingIdentity(x.id)))];
       g.cards=merged;g.expected=cards.length;
     }
     return Array.from(map.values()).map(g=>{
@@ -251,7 +299,7 @@ export default function App(){
     const owned=ownedQty(c.id)>0;
     const cardStyle=collectionCardSize==='small'?styles.binderCardSmall:collectionCardSize==='medium'?styles.binderCardMedium:styles.binderCard;
     const imageStyle=collectionCardSize==='small'?styles.binderImageSmall:collectionCardSize==='medium'?styles.binderImageMedium:styles.binderImage;
-    const ownedItem=collection.find(x=>x.id===c.id||x.id.startsWith(c.id+'::'));
+    const ownedItem=collection.find(x=>printingIdentity(x.id)===printingIdentity(c.id));
     return <TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>preferCollection&&ownedItem?openCollectionDetail(ownedItem):void openCardDetail(c)} style={[cardStyle,!owned&&styles.binderMissing]}>
       {c.image?<Image source={{uri:c.image}} style={[imageStyle,!owned&&styles.binderImageMissing]} resizeMode="contain"/>:<View style={[imageStyle,!owned&&styles.binderImageMissing]}><Text style={styles.imageFallback}>{c.name.slice(0,1)}</Text></View>}
       <View style={styles.cardPriceBadge}><Text style={styles.cardPriceText}>{money(c.priceEUR)}</Text></View>
