@@ -1,4 +1,5 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
+// [build] national dex interaction fix
 import {ActivityIndicator,FlatList,Image,SectionList,StyleSheet,Text,TextInput,TouchableOpacity,View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getPokemonCardsForPokemon} from './src/data/catalog';
