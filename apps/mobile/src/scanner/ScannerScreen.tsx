@@ -102,6 +102,37 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
 
   const runProfessionalInspection=async()=>{if(!lastPhoto||professionalRunning)return;setProfessionalRunning(true);setError(null);try{const existing=professionalAnalysis?.photos||[];const photos:InspectionPhoto[]=[...existing];const addPhoto=(uri:string,purpose:InspectionPhoto['purpose'],label:string)=>{if(!photos.some(p=>p.purpose===purpose))photos.push({id:purpose+'-'+Date.now()+'-'+photos.length,uri,purpose,label,createdAt:new Date().toISOString()});};if(!photos.some(p=>p.purpose==='front'))addPhoto(lastPhoto,'front','Fronte');if(backPhoto&&!photos.some(p=>p.purpose==='back'))addPhoto(backPhoto,'back','Retro');for(const step of PROFESSIONAL_INSPECTION_STEPS){if(photos.some(p=>p.purpose===step.purpose))continue;setMessage(step.title+': '+step.instruction);const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned)throw new Error('Acquisizione annullata');const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;addPhoto(uri,step.purpose,step.title)}const {analyzeProfessionalInspection}=await import('../data/visualGrading');const analysis=await analyzeProfessionalInspection(photos);setProfessionalAnalysis(analysis);if(gradedId)await onProfessionalAnalysis?.(gradedId,analysis);setMessage('✓ Analisi aggiornata: '+photos.length+' acquisizioni confrontate.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back|annull/i.test(String(errorValue??''));setMessage(cancelled?'Analisi professionale interrotta.':'Analisi professionale non completata: puoi riprovare.');if(!cancelled)setError('Puoi riprovare: le foto già acquisite restano disponibili.')}finally{setProfessionalRunning(false)}};
 
+  const addExtraGradingPhoto=async()=>{
+    if(!lastPhoto||professionalRunning)return;
+    setProfessionalRunning(true);setError(null);
+    try{
+      setMessage('Acquisizione foto aggiuntiva: scegli un dettaglio utile (superficie, angolo o bordo)…');
+      const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});
+      const scanned=result.scannedImages?.[0];
+      if(!scanned)throw new Error('Acquisizione annullata');
+      const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
+      const existing=professionalAnalysis?.photos||[];
+      const extra:InspectionPhoto={
+        id:'extra-'+Date.now()+'-'+existing.length,
+        uri,
+        purpose:'surface_close',
+        label:'Foto aggiuntiva',
+        createdAt:new Date().toISOString()
+      };
+      const photos=[...existing,extra];
+      const {analyzeProfessionalInspection}=await import('../data/visualGrading');
+      const analysis=await analyzeProfessionalInspection(photos);
+      setProfessionalAnalysis(analysis);
+      if(gradedId)await onProfessionalAnalysis?.(gradedId,analysis);
+      setMessage('✓ Foto aggiuntiva acquisita • analisi professionale aggiornata');
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }catch(errorValue){
+      const cancelled=/cancel|dismiss|back|annull/i.test(String(errorValue??''));
+      setMessage(cancelled?'Acquisizione foto aggiuntiva annullata.':'Foto aggiuntiva non acquisita.');
+      if(!cancelled)setError('La foto non è stata aggiunta. Puoi riprovare.');
+    }finally{setProfessionalRunning(false)}
+  };
+
   const chooseCondition=async(condition:Condition)=>{setConditionTouched(true);setSelectedCondition(condition);if(gradedId)await onConditionSelected?.(gradedId,condition);setCollectionSaved(false)};
   const saveCollection=async()=>{const card=selectedRecognizedCard||recognition?.card;if(!card||!onSaveCollection)return;await onSaveCollection(card,selectedCondition,lastPhoto||undefined,backPhoto||undefined,visualAnalysis||undefined,professionalAnalysis||undefined);if(gradedId){await onConditionSelected?.(gradedId,selectedCondition);await onCardSelected?.(gradedId,card);}setCollectionSaved(true);setMessage('Carta salvata nella collezione con la condizione selezionata.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)};
   const retry=()=>{setEditorOpen(false);setLastPhoto(null);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);setScanGeometry(null);setGradedId(undefined);setCollectionSaved(false);setError(null);setMessage('Pronto: inquadra la carta. I 4 lati e i 4 angoli vengono rilevati automaticamente.');};
@@ -147,6 +178,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
       {visualAnalysis&&<View style={styles.analysisBox}><View style={styles.analysisHead}><Text style={styles.analysisTitle}>GRADING VISIVO ASSISTITO</Text><Text style={styles.analysisScore}>{visualAnalysis.score}/100</Text></View><Text style={styles.analysisSuggestion}>Suggerimento: <Text style={styles.analysisStrong}>{visualAnalysis.condition}</Text> · confidenza {visualAnalysis.confidence}%{visualAnalysis.hasBack?' · fronte + retro':' · solo fronte'}</Text><View style={styles.defectRow}>{visualAnalysis.defects.filter(d=>(d.score??(d.severity==='high'?60:d.severity==='medium'?35:15))>=28).map(d=><View key={d.id} style={styles.defectChip}><Text style={styles.defectChipText}>{d.type.replace('_',' ')} {Math.round(d.score??(d.severity==='high'?60:d.severity==='medium'?35:15))}</Text></View>)}</View><Text style={styles.analysisNote}>{visualAnalysis.notes[0]}</Text></View>}
       {professionalAnalysis&&<View style={styles.professionalBox}><View style={styles.analysisHead}><Text style={styles.analysisTitle}>ANALISI PROFESSIONALE</Text><Text style={styles.analysisScore}>{professionalAnalysis.overall||'—'}/100</Text></View><Text style={styles.analysisSuggestion}>{professionalAnalysis.photos.length} acquisizioni · confidenza {professionalAnalysis.confidence}%</Text>{professionalAnalysis.subgrades&&<View style={styles.subgradeRow}><Text style={styles.subgrade}>CENTER {professionalAnalysis.centeringStatus==='needs-card-geometry'?'DA MISURARE':professionalAnalysis.subgrades.centering}</Text><Text style={styles.subgrade}>CORNERS {professionalAnalysis.subgrades.corners}</Text><Text style={styles.subgrade}>EDGES {professionalAnalysis.subgrades.edges}</Text><Text style={styles.subgrade}>SURFACE {professionalAnalysis.subgrades.surface}</Text></View>}{professionalAnalysis.defects?.length?<View style={styles.defectRow}>{professionalAnalysis.defects.slice(0,12).map(d=><View key={d.id} style={styles.defectChip}><Text style={styles.defectChipText}>{d.type.replace('_',' ')} · {d.side} · {Math.round(d.score??0)}</Text></View>)}</View>:null}{professionalAnalysis.requiresMorePhotos&&<Text style={styles.analysisNote}>Servono altre foto ravvicinate/inclinate per aumentare la confidenza del grading.</Text>}<Text style={styles.analysisNote}>{professionalAnalysis.notes[0]}</Text></View>}
       {recognition?.card&&<TouchableOpacity style={styles.professionalButton} onPress={()=>void runProfessionalInspection()} disabled={professionalRunning}><Text style={styles.professionalButtonText}>{professionalRunning?'ANALISI PROFESSIONALE IN CORSO…':professionalAnalysis?'RIPETI ANALISI PROFESSIONALE':'AVVIA ANALISI PROFESSIONALE'}</Text><Text style={styles.professionalHint}>fronte • retro • ravvicinata • inclinata • angoli • bordi</Text></TouchableOpacity>}
+      {recognition?.card&&professionalAnalysis&&<TouchableOpacity style={styles.backButton} onPress={()=>void addExtraGradingPhoto()} disabled={professionalRunning}><Text style={styles.backButtonText}>{professionalRunning?'ACQUISIZIONE FOTO…':'＋ AGGIUNGI FOTO DI VERIFICA'}</Text></TouchableOpacity>}
       {(selectedRecognizedCard||recognition?.card)&&<View style={styles.conditionBox}><Text style={styles.conditionTitle}>CONDIZIONE DELLA CARTA</Text><Text style={styles.conditionHint}>{selectedCondition==='Da verificare'?'Puoi salvarla ora e completare la condizione più tardi.':'Puoi modificarla in qualsiasi momento.'}</Text><View style={styles.conditionRow}>{CONDITIONS.map(c=><TouchableOpacity key={c} onPress={()=>void chooseCondition(c)} style={selectedCondition===c?styles.conditionOn:styles.conditionOff}><Text style={selectedCondition===c?styles.conditionOnText:styles.conditionOffText}>{c}</Text></TouchableOpacity>)}</View><View style={styles.valueRow}><Text style={styles.valueLabel}>VALORE STIMATO ({selectedCondition})</Text><Text style={styles.valueText}>{estimateCardValueEUR((selectedRecognizedCard||recognition?.card)?.priceEUR??0,selectedCondition)>0?'€ '+estimateCardValueEUR((selectedRecognizedCard||recognition?.card)?.priceEUR??0,selectedCondition).toFixed(2):'—'}</Text></View></View>}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.secondary} onPress={retry}><Text style={styles.secondaryText}>Riprova</Text></TouchableOpacity>
