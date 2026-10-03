@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// [build] Italian-first catalog + multilingual printing selection
+// [build] Italian-first catalog + multilingual printing selection + fast visible-image cache
 
 
 export type Game='pokemon'|'yugioh';
