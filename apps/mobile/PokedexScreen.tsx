@@ -148,13 +148,13 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
         <TouchableOpacity style={styles.scanTop} onPress={onScan}><Text style={styles.scanTopText}>SCAN</Text></TouchableOpacity>
       </View>
       <View style={styles.pokemonHero}>
-        <Image source={{uri:selected.sprite}} style={styles.heroSprite}/>
+        <Image source={{uri:selected.sprite,cache:'force-cache'}} style={styles.heroSprite}/>
         <View style={styles.flex}><Text style={styles.heroName}>{pretty(selected.name)}</Text><Text style={styles.muted}>{cards.length} carte nel catalogo TCGdex</Text></View>
       </View>
       {cardsLoading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico tutte le carte di {pretty(selected.name)}…</Text></View>:cardsError?<Text style={styles.empty}>Impossibile caricare le carte adesso.</Text>:cards.length===0?<Text style={styles.empty}>Nessuna carta trovata per questo Pokémon.</Text>:<FlatList data={cards} keyExtractor={c=>c.id} numColumns={3} initialNumToRender={12} maxToRenderPerBatch={12} windowSize={7} removeClippedSubviews contentContainerStyle={styles.grid} columnWrapperStyle={styles.row} renderItem={({item})=>{
         const owned=isCardOwned(item);
         return <TouchableOpacity style={[styles.card,!owned&&styles.cardMissing]} activeOpacity={0.82} onPress={()=>onOpenCard(item)}>
-          {item.image?<Image source={{uri:item.image}} style={[styles.cardImage,!owned&&styles.cardImageMissing]} resizeMode="contain"/>:<View style={[styles.cardImage,!owned&&styles.cardImageMissing]}/>}
+          {item.image?<Image source={{uri:item.image,cache:'force-cache'}} style={[styles.cardImage,!owned&&styles.cardImageMissing]} resizeMode="contain"/>:<View style={[styles.cardImage,!owned&&styles.cardImageMissing]}/>}
           {owned&&<View style={styles.cardOwned}><Text style={styles.cardOwnedText}>✓ POSSEDUTA</Text></View>}
           <Text style={[styles.cardName,!owned&&styles.cardNameMissing]} numberOfLines={2}>{item.name}</Text>
           <Text style={styles.cardMeta}>{item.number||'—'}{item.rarity?' · '+item.rarity:''}</Text>
@@ -176,7 +176,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
   const renderItem=({item}:{item:DexRow})=><View style={styles.row}>{item.items.map(p=>{
     const owned=ownedSet.has(p.id);
     return <TouchableOpacity key={p.id} style={[styles.pokemonCard,!owned&&styles.pokemonCardMissing]} activeOpacity={0.82} onPress={()=>setSelected(p)}>
-      <Text style={styles.dexNumber}>#{p.id}</Text><Image source={{uri:p.sprite}} style={[styles.sprite,!owned&&styles.spriteMissing]}/><Text style={[styles.pokemonName,!owned&&styles.pokemonNameMissing]} numberOfLines={1}>{pretty(p.name)}</Text>{owned&&<View style={styles.owned}><Text style={styles.ownedText}>✓</Text></View>}
+      <Text style={styles.dexNumber}>#{p.id}</Text><Image source={{uri:p.sprite,cache:'force-cache'}} style={[styles.sprite,!owned&&styles.spriteMissing]}/><Text style={[styles.pokemonName,!owned&&styles.pokemonNameMissing]} numberOfLines={1}>{pretty(p.name)}</Text>{owned&&<View style={styles.owned}><Text style={styles.ownedText}>✓</Text></View>}
     </TouchableOpacity>;
   })}{item.items.length<3&&<View style={styles.pokemonCardGhost}/>}</View>;
 
