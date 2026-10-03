@@ -140,7 +140,10 @@ export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Pr
   const quality=allStats.length?allStats.reduce((s,x)=>s+x.quality,0)/allStats.length:0;
   const frontSurface=frontStats?.score??0;
   const backSurface=backStats?.score??frontSurface;
-  const surface=Math.round(clamp(frontSurface*.55+backSurface*.25+(extraStats.length?extraStats.reduce((s,x)=>s+x.score,0)/extraStats.length*.2:frontSurface*.2)));
+  // ImageStats.score is anomaly signal (higher = more suspicious), so the
+  // professional surface subgrade must invert it before contributing to the grade.
+  const surfaceAnomaly=frontStats?frontSurface*.55+backSurface*.25+(extraStats.length?extraStats.reduce((s,x)=>s+x.score,0)/extraStats.length*.2:frontSurface*.2):100;
+  const surface=Math.round(clamp(100-surfaceAnomaly));
   const cornerAnomaly=frontStats?frontStats.corners.reduce((s,r)=>s+r.score,0)/4:100;
   const edgeAnomaly=frontStats?frontStats.edges.reduce((s,r)=>s+r.score,0)/4:100;
   const corners=Math.round(clamp(100-cornerAnomaly));
@@ -163,6 +166,7 @@ export async function analyzeProfessionalInspection(photos:InspectionPhoto[]):Pr
   return {
     mode:'professional',
     completed:Boolean(front&&photos.length>=2),
+    condition:conditionFromScore(overall),
     photos,
     centeringStatus,
     subgrades:{corners,edges,surface},
