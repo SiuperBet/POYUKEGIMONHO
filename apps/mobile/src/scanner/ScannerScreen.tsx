@@ -3,7 +3,7 @@ import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as R
 import type {CatalogCard} from '../data/catalog';
 import {getPokemonSetCards,getYugiohSetCards} from '../data/catalog';
 import {CONDITIONS,Condition,estimateCardValueEUR} from '../data/store';
-import type {InspectionPhoto,ProfessionalAnalysis} from '../data/store';
+import type {InspectionPhoto,ProfessionalAnalysis,GradedItem} from '../data/store';
 import {PROFESSIONAL_INSPECTION_STEPS} from '../data/inspectionGuidance';
 import {CardEdgeEditor} from './CardEdgeEditor';
 import type {RecognitionResult} from '../data/recognition';
@@ -11,7 +11,7 @@ import type {VisualAnalysis} from '../data/visualGrading';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as Haptics from 'expo-haptics';
 
-type Props={onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
+type Props={resumeGraded?:GradedItem;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
 export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis,onProfessionalAnalysis,onCardSelected}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
@@ -30,6 +30,32 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
   const [professionalRunning,setProfessionalRunning]=useState(false);
   const [editorOpen,setEditorOpen]=useState(false);
   const launched=useRef(false);
+
+  useEffect(()=>{
+    if(!resumeGraded)return;
+    setGradedId(resumeGraded.id);
+    setLastPhoto(resumeGraded.image||null);
+    setBackPhoto(resumeGraded.backImage||null);
+    setProfessionalAnalysis(resumeGraded.professionalAnalysis||null);
+    setVisualAnalysis(resumeGraded.visualAnalysis||null);
+    setSelectedCondition(resumeGraded.condition||'NM');
+    setSelectedRecognizedCard(resumeGraded.card||null);
+    setRecognizedVariants(resumeGraded.card?[resumeGraded.card]:[]);
+    setRecognition(resumeGraded.card?{
+      card:resumeGraded.card,
+      confidence:1,
+      text:'',
+      number:resumeGraded.card.number,
+      language:resumeGraded.card.language,
+      candidates:[resumeGraded.card],
+      status:'matched',
+      margin:1
+    }:null);
+    setMessage(resumeGraded.professionalAnalysis
+      ? 'Analisi ripresa: puoi aggiungere le foto mancanti e rieseguire il controllo.'
+      : 'Grading ripreso: puoi aggiungere retro, angoli, bordi e dettagli della superficie.');
+  },[resumeGraded?.id]);
+
 
   const scanBack=async()=>{if(!gradedId||scanningBack)return;setScanningBack(true);setError(null);setMessage('Inquadra il retro della carta…');try{const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned){setMessage('Retro non acquisito. Il retro resta opzionale.');return}const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;setBackPhoto(uri);await onBackCaptured?.(gradedId,uri);setMessage('Analisi fronte + retro in corso…');const {analyzeCardCondition}=await import('../data/visualGrading'); const analysis=await analyzeCardCondition(lastPhoto||uri,uri).catch(()=>null);if(analysis){setVisualAnalysis(analysis);if(!conditionTouched){setSelectedCondition(analysis.condition);await onConditionSelected?.(gradedId,analysis.condition)}await onVisualAnalysis?.(gradedId,analysis)}setMessage('✓ Retro acquisito • valutazione fronte + retro aggiornata');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back/i.test(String(errorValue??''));setMessage(cancelled?'Acquisizione retro annullata.':'Impossibile acquisire il retro. Puoi continuare senza retro.');}finally{setScanningBack(false)}};
 
@@ -74,7 +100,7 @@ export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection
     if(!launched.current){launched.current=true;}
   },[]);
 
-  const runProfessionalInspection=async()=>{if(!lastPhoto||professionalRunning)return;setProfessionalRunning(true);setError(null);setProfessionalAnalysis(null);try{const photos:InspectionPhoto[]=[];const addPhoto=(uri:string,purpose:InspectionPhoto['purpose'],label:string)=>photos.push({id:purpose+'-'+Date.now()+'-'+photos.length,uri,purpose,label,createdAt:new Date().toISOString()});addPhoto(lastPhoto,'front','Fronte');if(backPhoto)addPhoto(backPhoto,'back','Retro');for(const step of PROFESSIONAL_INSPECTION_STEPS){if(step.purpose==='front'||step.purpose==='back')continue;setMessage(step.title+': '+step.instruction);const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned)throw new Error('Acquisizione annullata');const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;addPhoto(uri,step.purpose,step.title)}const {analyzeProfessionalInspection}=await import('../data/visualGrading');const analysis=await analyzeProfessionalInspection(photos);setProfessionalAnalysis(analysis);if(gradedId)await onProfessionalAnalysis?.(gradedId,analysis);setMessage('✓ Analisi professionale completata: '+photos.length+' acquisizioni confrontate.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back|annull/i.test(String(errorValue??''));setMessage(cancelled?'Analisi professionale interrotta.':'Analisi professionale non completata: puoi riprovare.');if(!cancelled)setError('Non tutte le foto richieste sono state acquisite. La carta resta comunque salvata.')}finally{setProfessionalRunning(false)}};
+  const runProfessionalInspection=async()=>{if(!lastPhoto||professionalRunning)return;setProfessionalRunning(true);setError(null);try{const existing=professionalAnalysis?.photos||[];const photos:InspectionPhoto[]=[...existing];const addPhoto=(uri:string,purpose:InspectionPhoto['purpose'],label:string)=>{if(!photos.some(p=>p.purpose===purpose))photos.push({id:purpose+'-'+Date.now()+'-'+photos.length,uri,purpose,label,createdAt:new Date().toISOString()});};if(!photos.some(p=>p.purpose==='front'))addPhoto(lastPhoto,'front','Fronte');if(backPhoto&&!photos.some(p=>p.purpose==='back'))addPhoto(backPhoto,'back','Retro');for(const step of PROFESSIONAL_INSPECTION_STEPS){if(photos.some(p=>p.purpose===step.purpose))continue;setMessage(step.title+': '+step.instruction);const result=await DocumentScanner.scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned)throw new Error('Acquisizione annullata');const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;addPhoto(uri,step.purpose,step.title)}const {analyzeProfessionalInspection}=await import('../data/visualGrading');const analysis=await analyzeProfessionalInspection(photos);setProfessionalAnalysis(analysis);if(gradedId)await onProfessionalAnalysis?.(gradedId,analysis);setMessage('✓ Analisi aggiornata: '+photos.length+' acquisizioni confrontate.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back|annull/i.test(String(errorValue??''));setMessage(cancelled?'Analisi professionale interrotta.':'Analisi professionale non completata: puoi riprovare.');if(!cancelled)setError('Puoi riprovare: le foto già acquisite restano disponibili.')}finally{setProfessionalRunning(false)}};
 
   const chooseCondition=async(condition:Condition)=>{setConditionTouched(true);setSelectedCondition(condition);if(gradedId)await onConditionSelected?.(gradedId,condition);setCollectionSaved(false)};
   const saveCollection=async()=>{const card=selectedRecognizedCard||recognition?.card;if(!card||!onSaveCollection)return;await onSaveCollection(card,selectedCondition,lastPhoto||undefined,backPhoto||undefined,visualAnalysis||undefined,professionalAnalysis||undefined);if(gradedId){await onConditionSelected?.(gradedId,selectedCondition);await onCardSelected?.(gradedId,card);}setCollectionSaved(true);setMessage('Carta salvata nella collezione con la condizione selezionata.');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)};
