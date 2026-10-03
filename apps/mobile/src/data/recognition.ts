@@ -211,7 +211,9 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   ])].slice(0,24);
   const pokemonNames=game==='pokemon'?await detectPokemonNames(text):[];
   let candidates=await candidateSearch(game,queries,numbers.locals,detected,pokemonNames);
-  // If the primary pass is weak, expand only then to the remaining languages.
+  // Expand on weak evidence, not only when the first pass returns few candidates.
+  // This prevents a wrong first batch (e.g. 3 unrelated printings) from blocking
+  // the secondary-language search.
   if(game==='pokemon'&&candidates.length<3){
     const secondary:PokemonLanguage[]=['fr','de','es','pt-br','ko','zh-tw','zh-cn'];
     const probes=[...new Set([...numbers.locals.slice(0,2),...queries.slice(0,3)])];
@@ -233,9 +235,21 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
     candidates=[...new Map(fallback.flat().map(c=>[c.id,c])).values()];
   }
 
-  const ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
-  const top=ranked[0];
-  const second=ranked[1]?.score||0;
+  let ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
+
+  // If OCR found a plausible exact collectible number, prefer candidates sharing
+  // that localId. This is a strong disambiguator between near-identical printings.
+  if(numbers.best&&ranked.length){
+    const bestLocal=String(numbers.best).split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||String(numbers.best);
+    const exact=ranked.filter(x=>{
+      const local=String(x.card.number||'').split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||String(x.card.number||'');
+      return local===bestLocal;
+    });
+    if(exact.length)ranked=[...exact,...ranked.filter(x=>!exact.includes(x))];
+  }
+
+  let top=ranked[0];
+  let second=ranked[1]?.score||0;
   let confidence=top?.score||0;
   if(pokemonNames.length&&top&&pokemonNames.some(n=>compact(top.card.name).includes(compact(n))))confidence=Math.max(confidence,.58);
   // When the scan language is not reliably detectable, prefer the Italian printing
@@ -247,7 +261,29 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
     const b=String(top.card.number).split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||String(top.card.number);
     if(a&&b&&a!==b)confidence=Math.max(0,confidence-.22);
   }
-  const margin=Math.max(0,confidence-second);
+  let margin=Math.max(0,confidence-second);
+
+  // A low-confidence result gets one controlled secondary-language probe.
+  // Re-rank after the probe so multilingual cards can escape a misleading
+  // English/Italian first pass without multiplying network traffic.
+  if(game==='pokemon'&&(confidence<0.84||margin<0.14)){
+    const secondary:PokemonLanguage[]=['fr','de','es','pt-br','ko','zh-tw','zh-cn'];
+    const probes=[...new Set([
+      ...numbers.locals.slice(0,2),
+      ...pokemonNames.slice(0,1),
+      ...queries.slice(0,2)
+    ])].slice(0,4);
+    if(probes.length){
+      const extra=await Promise.all(secondary.flatMap(lang=>probes.map(q=>searchCards(game,q,lang).catch(()=>[]))));
+      const merged=[...new Map([...ranked.map(x=>x.card),...extra.flat()].map(card=>[card.id,card])).values()];
+      ranked=merged.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
+      top=ranked[0];
+      second=ranked[1]?.score||0;
+      confidence=top?.score||0;
+      margin=Math.max(0,confidence-second);
+    }
+  }
+
   const status=confidence>=0.84&&margin>=0.14?'matched':confidence>=0.28&&ranked.length>0?'possible':'unknown';
 
   return {
