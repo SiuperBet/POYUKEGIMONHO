@@ -38,11 +38,21 @@ function detectLanguageCode(text:string):PokemonLanguage|undefined{
   if(/[\uac00-\ud7af]/.test(text))return 'ko';
   if(/[\u4e00-\u9fff]/.test(text))return 'zh-cn';
   const t=normalize(text);
-  if(/\b(dresseur|evolutions|objet|energie)\b/.test(t))return 'fr';
-  if(/\b(entrenador|evoluciones|objeto|energia)\b/.test(t))return 'es';
-  if(/\b(allenatore|evoluzioni|strumento|energia|abilita)\b/.test(t))return 'it';
-  if(/\b(trainer|energy|evolutions|ability)\b/.test(t))return 'en';
-  if(/\b(trainer|energie|entwicklungen|faehigkeit|fähigkeit)\b/.test(t))return 'de';
+  const signals:Partial<Record<PokemonLanguage,string[]>>={
+    it:['allenatore','allenatori','evoluzioni','strumento','energia','abilita','attacco','attacchi','danno','danni','debolezza','resistenza','ritirata','panchina','banco','cura','cerca','scarta','pesca','metti','ritiro'],
+    en:['trainer','trainers','evolutions','item','energy','ability','attack','damage','weakness','resistance','retreat','bench','heal','search','discard','draw','put'],
+    fr:['dresseur','dresseurs','evolutions','objet','energie','capacite','attaque','degats','faiblesse','resistance','retraite','banc','soigne','cherche','defausse'],
+    es:['entrenador','entrenadores','evoluciones','objeto','energia','habilidad','ataque','dano','debilidad','resistencia','retirada','banca','cura','busca','descarta'],
+    de:['trainer','entwicklungen','item','energie','faehigkeit','fähigkeit','angriff','schaden','schwaeche','schwäche','resistenz','rueckzug','rückzug','bank'],
+    'pt-br':['treinador','evolucoes','evoluções','item','energia','habilidade','ataque','dano','fraqueza','resistencia','recuo','banco','cura','procure','descarte']
+  };
+  const scores=new Map<PokemonLanguage,number>();
+  for(const [lang,words] of Object.entries(signals) as [PokemonLanguage,string[]][]){
+    const score=words.reduce((n,w)=>n+(new RegExp('\\\\b'+w+'\\\\b','i').test(t)?1:0),0);
+    if(score>0)scores.set(lang,score);
+  }
+  const best=[...scores.entries()].sort((a,b)=>b[1]-a[1]);
+  if(best.length&&best[0][1]>=1&&(best.length===1||best[0][1]>best[1][1]))return best[0][0];
   return undefined;
 }
 function detectLanguage(text:string){
@@ -98,8 +108,11 @@ function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:Po
       if(bestLocal && cardLocal && bestLocal!==cardLocal)score-=0.34;
     }
   }
-  if(detected&&card.language===detected)score+=0.12;
-  if(detected&&card.language&&card.language!==detected)score-=0.10;
+  // Language is part of the printing identity. When OCR gives a language signal,
+  // matching that language must dominate a same-number result from another locale.
+  if(detected&&card.language===detected)score+=0.24;
+  if(detected&&card.language&&card.language!==detected)score-=0.22;
+  if(!detected&&card.language==='it')score+=0.05;
   if(card.variantLabel){
     const v=normalize(card.variantLabel);
     if(v&&source.includes(v))score+=0.08;
@@ -248,6 +261,14 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
     if(exact.length)ranked=[...exact,...ranked.filter(x=>!exact.includes(x))];
   }
 
+  // If the detected language has viable candidates, rank inside that language first.
+  // Other-language printings stay available as alternatives, but cannot silently win
+  // just because they share the same card number.
+  if(game==='pokemon'&&detected){
+    const sameLanguage=ranked.filter(x=>x.card.language===detected);
+    if(sameLanguage.length)ranked=[...sameLanguage,...ranked.filter(x=>x.card.language!==detected)];
+  }
+
   let top=ranked[0];
   let second=ranked[1]?.score||0;
   let confidence=top?.score||0;
@@ -277,6 +298,10 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
       const extra=await Promise.all(secondary.flatMap(lang=>probes.map(q=>searchCards(game,q,lang).catch(()=>[]))));
       const merged=[...new Map([...ranked.map(x=>x.card),...extra.flat()].map(card=>[card.id,card])).values()];
       ranked=merged.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
+      if(detected){
+        const sameLanguage=ranked.filter(x=>x.card.language===detected);
+        if(sameLanguage.length)ranked=[...sameLanguage,...ranked.filter(x=>x.card.language!==detected)];
+      }
       top=ranked[0];
       second=ranked[1]?.score||0;
       confidence=top?.score||0;
