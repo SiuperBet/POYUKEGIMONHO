@@ -13,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 
 type Props={resumeGraded?:GradedItem;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
-export function ScannerScreen({onExit,onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis,onProfessionalAnalysis,onCardSelected}:Props){
+export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis,onProfessionalAnalysis,onCardSelected}:Props){
   const [scannerOpen,setScannerOpen]=useState(false);
   const [lastPhoto,setLastPhoto]=useState<string|null>(null);const [backPhoto,setBackPhoto]=useState<string|null>(null);const [scanningBack,setScanningBack]=useState(false);
   const [message,setMessage]=useState('Premi SCANSIONE: il telefono rileverà automaticamente i 4 bordi.');
