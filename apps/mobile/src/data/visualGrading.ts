@@ -3,7 +3,7 @@ import {SaveFormat} from 'expo-image-manipulator';
 import {Skia,ColorType,AlphaType} from '@shopify/react-native-skia';
 import type {Condition,DefectRecord,ProfessionalAnalysis,InspectionPhoto} from './store';
 
-export type VisualAnalysis={condition:Condition;score:number;confidence:number;frontQuality:number;backQuality?:number;defects:DefectRecord[];hasBack:boolean;engine:'local-vision-assisted'|'local-vision-assisted-v2';notes:string[];professional?:ProfessionalAnalysis};
+export type VisualAnalysis={condition:Condition;score:number;confidence:number;frontQuality:number;backQuality?:number;defects:DefectRecord[];hasBack:boolean;engine:'local-vision-assisted'|'local-vision-assisted-v2'|'manual';notes:string[];professional?:ProfessionalAnalysis};
 
 function clamp(v:number,min=0,max=100){return Math.max(min,Math.min(max,v))}
 function conditionFromScore(score:number):Condition{
