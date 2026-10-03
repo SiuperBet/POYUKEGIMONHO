@@ -110,7 +110,18 @@ export default function App(){
   const ownedQty=(id:string)=>collection.filter(c=>printingIdentity(c.id)===printingIdentity(id)).reduce((n,c)=>n+c.quantity,0);
   const addCard=async(card:CatalogCard,selectedCondition:Condition='Da verificare',scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>{await addToCollection(card,selectedCondition,1,scanImage,backImage,visualAnalysis,professionalAnalysis);await refreshCollection()};
   const conditionSelector=<View style={styles.conditionBox}><Text style={styles.kicker}>CONDIZIONE PER NUOVE CARTE</Text><View style={styles.conditionRow}>{CONDITIONS.map(c=><TouchableOpacity key={c} onPress={()=>setCondition(c)} style={condition===c?styles.conditionOn:styles.conditionOff}><Text style={condition===c?styles.conditionOnText:styles.conditionOffText}>{c}</Text></TouchableOpacity>)}</View><Text style={styles.muted}>Il valore stimato usa il prezzo base disponibile e il coefficiente della condizione selezionata. Played non viene mai conteggiata come Mint/NM.</Text></View>;
-  const openSet=async(s:CatalogSet)=>{setsScrollYRef.current=setsScrollY;setSelectedSet(s);setLoading(true);try{setCards(s.game==='pokemon'?await getPokemonSetCards(String(s.sourceId||s.id).replace(/^\w+:/,''),(s.language as any)||'en'):await getYugiohSetCards(s.sourceId||s.name))}catch{setCards([])}finally{setLoading(false)}};
+  const openSet=async(s:CatalogSet)=>{setsScrollYRef.current=setsScrollY;setSelectedSet(s);setLoading(true);try{
+    if(s.game==='pokemon'){
+      const ids=s.subSetIds?.length?s.subSetIds:[String(s.sourceId||s.id).replace(/^\w+:/,'')];
+      const language=(s.language as any)||'it';
+      const batches=await Promise.all(ids.map(id=>getPokemonSetCards(id,language).catch(()=>[] as CatalogCard[])));
+      const seen=new Set<string>();const merged=batches.flat().filter(card=>{if(seen.has(card.id))return false;seen.add(card.id);return true});
+      merged.sort((a,b)=>String(a.number||'').localeCompare(String(b.number||''),undefined,{numeric:true,sensitivity:'base'}));
+      setCards(merged);
+    }else{
+      setCards(await getYugiohSetCards(s.sourceId||s.name));
+    }
+  }catch{setCards([])}finally{setLoading(false)}};
   const sortedSets=useMemo(()=>{const copy=[...sets];if(setSort==='nameAsc')return copy.sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'}));if(setSort==='nameDesc')return copy.sort((a,b)=>b.name.localeCompare(a.name,'it',{sensitivity:'base'}));return copy.sort((a,b)=>{const ad=a.releaseDate||'9999-99-99',bd=b.releaseDate||'9999-99-99';const cmp=ad.localeCompare(bd);return setSort==='oldest'?cmp:-cmp})},[sets,setSort]);
   const seriesGroups=useMemo(()=>{const map=new Map<string,{id:string;name:string;logo?:string;sets:CatalogSet[]}>();for(const s of sortedSets){const name=s.seriesName||'Altre espansioni';const id=(s.seriesId||name).toLowerCase().trim();if(!map.has(id))map.set(id,{id,name,logo:s.seriesLogo,sets:[]});map.get(id)!.sets.push(s)}return Array.from(map.values())},[sortedSets]);
   const prepareSetSort=async(next:SetSort)=>{setSetSort(next);if((next==='oldest'||next==='newest')&&sets.some(s=>!s.releaseDate)){setLoading(true);const hydrated=await hydrateSetDates(game,sets);setSets(hydrated);setLoading(false)}};
