@@ -78,7 +78,7 @@ export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):
       const all=localeResults.flat().filter(s=>s.cardCount!==0);
       const bySource=new Map<string,CatalogSet[]>();
       for(const set of all){
-        const source=String(set.sourceId||set.id).replace(/^\\w+:/,'');
+        const source=String(set.sourceId||set.id).replace(/^\w+:/,'');
         const bucket=bySource.get(source)||[];
         if(!bucket.some(x=>x.language===set.language))bucket.push(set);
         bySource.set(source,bucket);
@@ -96,7 +96,7 @@ export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):
       if(parent&&classic.length){
         const sameLanguage=classic.find(s=>String(s.language||'')===String(parent.language||''));
         if(sameLanguage){
-          parent.subSetIds=[String(parent.sourceId||parent.id).replace(/^\\w+:/,''),String(sameLanguage.sourceId||sameLanguage.id).replace(/^\\w+:/,'')];
+          parent.subSetIds=[String(parent.sourceId||parent.id).replace(/^\w+:/,''),String(sameLanguage.sourceId||sameLanguage.id).replace(/^\w+:/,'')];
           parent.cardCount=(Number(parent.cardCount)||0)+(Number(sameLanguage.cardCount)||0);
         }
       }
