@@ -8,9 +8,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 concurrency:
   group: mobile-build-${{ github.ref }}
@@ -18,7 +15,7 @@ concurrency:
 
 jobs:
   android-apk:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || contains(github.event.head_commit.message, '[build]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build]')
     runs-on: ubuntu-latest
     defaults:
       run:
