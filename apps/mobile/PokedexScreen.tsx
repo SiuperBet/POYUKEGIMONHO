@@ -70,6 +70,12 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
     return set;
   },[collection,pokemon]);
 
+  const visible=useMemo(()=>{
+    const q=normalize(query);
+    if(!q)return pokemon;
+    return pokemon.filter(p=>normalize(p.name).includes(q)||String(p.id)===q.replace(/^#/,''));
+  },[pokemon,query]);
+
   const visibleOwnedCount=useMemo(
     ()=>visible.reduce((count,p)=>count+(ownedSet.has(p.id)?1:0),0),
     [visible,ownedSet]
@@ -88,12 +94,6 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
         (!card.language||!item.language||String(card.language)===String(item.language)));
     };
   },[collection]);
-
-  const visible=useMemo(()=>{
-    const q=normalize(query);
-    if(!q)return pokemon;
-    return pokemon.filter(p=>normalize(p.name).includes(q)||String(p.id)===q.replace(/^#/,''));
-  },[pokemon,query]);
 
   const sections=useMemo<DexSection[]>(()=>{
     const make=(r:RegionDef):DexSection=>{
