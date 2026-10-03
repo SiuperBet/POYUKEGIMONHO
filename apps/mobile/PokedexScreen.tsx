@@ -61,17 +61,19 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
 
   const ownedSet=useMemo(()=>{
     const set=new Set<number>();
-    for(const p of pokemon){
-      if(collection.some(c=>c.game==='pokemon'&&normalize(c.name).includes(normalize(p.name))))set.add(p.id);
-    }
+    const ownedNames=new Set(collection.filter(c=>c.game==='pokemon').map(c=>normalize(c.name)));
+    for(const p of pokemon)if(ownedNames.has(normalize(p.name))||[...ownedNames].some(n=>n.includes(normalize(p.name))))set.add(p.id);
     return set;
   },[collection,pokemon]);
 
   const isCardOwned=useMemo(()=>{
     const owned=collection.filter(c=>c.game==='pokemon');
+    const ids=new Set(owned.map(item=>item.id));
+    const names=new Set(owned.map(item=>normalize(item.name)));
     return (card:CatalogCard)=>{
-      if(owned.some(item=>item.id===card.id||item.id.startsWith(card.id+'::')))return true;
-      return owned.some(item=>normalize(item.name)===normalize(card.name) &&
+      if(ids.has(card.id)||owned.some(item=>item.id.startsWith(card.id+'::')))return true;
+      const targetName=normalize(card.name);
+      return names.has(targetName)&&owned.some(item=>normalize(item.name)===targetName &&
         (!card.setId||!item.setId||String(card.setId)===String(item.setId)) &&
         (!card.number||!item.number||String(card.number)===String(item.number)) &&
         (!card.language||!item.language||String(card.language)===String(item.language)));
