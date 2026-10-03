@@ -12,6 +12,19 @@ type Tab='home'|'scan'|'collection'|'graded'|'sets'|'market';
 type SetSort='oldest'|'newest'|'nameAsc'|'nameDesc';
 type MarketSort='priceAsc'|'priceDesc'|'dateAsc'|'dateDesc'|'numberAsc'|'numberDesc';
 const money=(n:number|undefined)=>n&&n>0?'€ '+n.toFixed(2):'—';
+const englishImageFallback=(uri?:string)=>{
+  if(!uri)return undefined;
+  return uri.replace('assets.tcgdex.net/it/','assets.tcgdex.net/en/');
+};
+function SafeCardImage({uri,style,name}:{uri?:string;style:any;name:string}){
+  const [failed,setFailed]=useState(false);
+  const [fallbackFailed,setFallbackFailed]=useState(false);
+  const fallback=englishImageFallback(uri);
+  if(!uri||fallbackFailed)return <View style={[style,styles.imageFallbackBox]}><Text style={styles.imageFallback}>{name.slice(0,1)}</Text></View>;
+  const active=failed&&fallback&&fallback!==uri?fallback:uri;
+  return <Image source={{uri:active,cache:'force-cache'}} style={style} resizeMode="contain"
+    onError={()=>{if(!failed&&fallback&&fallback!==uri)setFailed(true);else setFallbackFailed(true)}}/>;
+}
 
 export default function App(){
   const [tab,setTab]=useState<Tab>('home');
@@ -301,7 +314,7 @@ export default function App(){
     const imageStyle=collectionCardSize==='small'?styles.binderImageSmall:collectionCardSize==='medium'?styles.binderImageMedium:styles.binderImage;
     const ownedItem=collection.find(x=>printingIdentity(x.id)===printingIdentity(c.id));
     return <TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>preferCollection&&ownedItem?openCollectionDetail(ownedItem):void openCardDetail(c)} style={[cardStyle,!owned&&styles.binderMissing]}>
-      {c.image?<Image source={{uri:c.image}} style={[imageStyle,!owned&&styles.binderImageMissing]} resizeMode="contain"/>:<View style={[imageStyle,!owned&&styles.binderImageMissing]}><Text style={styles.imageFallback}>{c.name.slice(0,1)}</Text></View>}
+      <SafeCardImage uri={c.image} style={[imageStyle,!owned&&styles.binderImageMissing]} name={c.name}/>
       <View style={styles.cardPriceBadge}><Text style={styles.cardPriceText}>{money(c.priceEUR)}</Text></View>
       <Text style={[styles.binderName,!owned&&styles.binderMissingText]} numberOfLines={1}>{c.name}</Text>
       <Text style={styles.binderNumber}>{c.number||'—'}{c.variantLabel?' · '+c.variantLabel:''}{c.language?' · '+(c.language==='it'?'IT':c.language==='en'?'EN':String(c.language).toUpperCase()):''}</Text>
@@ -311,7 +324,7 @@ export default function App(){
 
   const sortedResults=useMemo(()=>{const copy=[...results];const num=(v?:string)=>{const m=String(v||'').match(/\d+/);return m?Number(m[0]):999999};const date=(v?:string)=>v||'0000-00-00';if(marketSort==='priceAsc')return copy.sort((a,b)=>(a.priceEUR||Number.POSITIVE_INFINITY)-(b.priceEUR||Number.POSITIVE_INFINITY));if(marketSort==='priceDesc')return copy.sort((a,b)=>(b.priceEUR||0)-(a.priceEUR||0));if(marketSort==='numberAsc')return copy.sort((a,b)=>num(a.number)-num(b.number)||String(a.number||'').localeCompare(String(b.number||'')));if(marketSort==='numberDesc')return copy.sort((a,b)=>num(b.number)-num(a.number)||String(b.number||'').localeCompare(String(a.number||'')));if(marketSort==='dateAsc')return copy.sort((a,b)=>date(a.releaseDate).localeCompare(date(b.releaseDate)));return copy.sort((a,b)=>date(b.releaseDate).localeCompare(date(a.releaseDate)))},[results,marketSort]);
 
-  const renderMarketCard=(c:CatalogCard)=>marketView==='grid'?<TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>void openCardDetail(c)} style={styles.marketGridCard}>{c.image?<Image source={{uri:c.image}} style={styles.marketImage} resizeMode="contain"/>:<View style={styles.marketImage}><Text style={styles.imageFallback}>{c.name.slice(0,1)}</Text></View>}<Text style={styles.binderName} numberOfLines={2}>{c.name}</Text><Text style={styles.binderNumber}>{c.number||'—'}</Text><Text style={styles.marketMeta}>{c.releaseDate||'Data n/d'}{c.language?' · '+(c.language==='it'?'IT':c.language==='en'?'EN':String(c.language).toUpperCase()):''}</Text><Text style={styles.price}>{money(c.priceEUR)}</Text></TouchableOpacity>:<TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>void openCardDetail(c)} style={styles.marketListCard}>{c.image?<Image source={{uri:c.image}} style={styles.marketListImage} resizeMode="contain"/>:<View style={styles.marketListImage}/>}<View style={styles.flex}><Text style={styles.cardName}>{c.name}</Text><Text style={styles.muted}>{c.number||'—'} · {c.releaseDate||'Data n/d'}{c.language?' · '+(c.language==='it'?'IT':c.language==='en'?'EN':String(c.language).toUpperCase()):''}</Text><Text style={styles.price}>{money(c.priceEUR)}</Text></View></TouchableOpacity>;
+  const renderMarketCard=(c:CatalogCard)=>marketView==='grid'?<TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>void openCardDetail(c)} style={styles.marketGridCard}><SafeCardImage uri={c.image} style={styles.marketImage} name={c.name}/><Text style={styles.binderName} numberOfLines={2}>{c.name}</Text><Text style={styles.binderNumber}>{c.number||'—'}</Text><Text style={styles.marketMeta}>{c.releaseDate||'Data n/d'}{c.language?' · '+(c.language==='it'?'IT':c.language==='en'?'EN':String(c.language).toUpperCase()):''}</Text><Text style={styles.price}>{money(c.priceEUR)}</Text></TouchableOpacity>:<TouchableOpacity key={c.id} activeOpacity={0.8} onPress={()=>void openCardDetail(c)} style={styles.marketListCard}><SafeCardImage uri={c.image} style={styles.marketListImage} name={c.name}/><View style={styles.flex}><Text style={styles.cardName}>{c.name}</Text><Text style={styles.muted}>{c.number||'—'} · {c.releaseDate||'Data n/d'}{c.language?' · '+(c.language==='it'?'IT':c.language==='en'?'EN':String(c.language).toUpperCase()):''}</Text><Text style={styles.price}>{money(c.priceEUR)}</Text></View></TouchableOpacity>;
 
   const content=pokedexOpen?<PokedexScreen collection={collection} onOpenCard={c=>void openCardDetail(c)} onScan={()=>{setPokedexOpen(false);setTab('scan')}} onBack={()=>setPokedexOpen(false)}/>:tab==='scan'?<ScannerScreen resumeGraded={gradingResume||undefined} onExit={()=>{setGradingResume(null);setTab('home')}} onCaptured={captureSaved} onBackCaptured={setScannedBack} onSaveCollection={(card,c,image,back,analysis,professional)=>addCard(card,c,image,back,analysis,professional)} onConditionSelected={setScannedCondition} onVisualAnalysis={setScannedAnalysis} onProfessionalAnalysis={setScannedProfessional} onCardSelected={setScannedCard}/>:tab==='home'?<ScrollView contentContainerStyle={styles.content}>
     <View style={styles.dashboardHeader}><View style={styles.dashboardTop}><View style={styles.flex}><Text style={styles.kicker}>CARDGRADE</Text><Text style={styles.h1}>La tua collezione</Text></View><TouchableOpacity style={styles.profileButton} onPress={()=>setTab('graded')}><Text style={styles.profileButtonText}>◉</Text></TouchableOpacity></View><Text style={styles.copy}>Scansiona, organizza e controlla il valore delle tue carte.</Text></View>
