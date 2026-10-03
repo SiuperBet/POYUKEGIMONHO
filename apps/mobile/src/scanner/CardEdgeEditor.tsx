@@ -47,10 +47,10 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
   };
 
   const sides=[
-    {key:'top' as const,a:quad.tl,b:quad.tr,label:'LATO SUPERIORE'},
-    {key:'right' as const,a:quad.tr,b:quad.br,label:'LATO DESTRO'},
-    {key:'bottom' as const,a:quad.br,b:quad.bl,label:'LATO INFERIORE'},
-    {key:'left' as const,a:quad.bl,b:quad.tl,label:'LATO SINISTRO'}
+    {key:'top' as const,a:quad.tl,b:quad.tr},
+    {key:'right' as const,a:quad.tr,b:quad.br},
+    {key:'bottom' as const,a:quad.br,b:quad.bl},
+    {key:'left' as const,a:quad.bl,b:quad.tl}
   ];
 
   return <View style={styles.root}>
@@ -59,7 +59,6 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
     <View style={styles.canvas} onLayout={layout}>
       <Image source={{uri}} style={styles.image} resizeMode="contain"/>
       {sides.map(s=><View key={'line-'+s.key} pointerEvents="none" style={[styles.edgeLine,lineStyle(s.a,s.b),{transform:[{rotate:angle(s.a,s.b)+'deg'}]}]}/>)}
-      {sides.map(s=><View key={'hit-'+s.key} {...sidePan[s.key].panHandlers} style={[styles.sideHit,lineStyle(s.a,s.b),{transform:[{rotate:angle(s.a,s.b)+'deg'}]}]}><Text style={styles.sideLabel}>{s.label}</Text></View>)}
       {(['tl','tr','br','bl'] as const).map(k=><View key={k} {...cornerPan[k].panHandlers} style={[styles.cornerHandle,pointStyle(quad[k])]}><View style={styles.cornerDot}/><Text style={styles.cornerLabel}>{k.toUpperCase()}</Text></View>)}
     </View>
     <View style={styles.legend}><Text style={styles.legendText}>● 4 ANGOLI</Text><Text style={styles.legendText}>━ BORDI COLLEGATI AGLI ANGOLI</Text></View>
