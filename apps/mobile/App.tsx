@@ -141,14 +141,14 @@ export default function App(){
             const priceUSD=variantId==='holo'?Number(tp.holofoil?.marketPrice)||undefined:variantId==='reverse'?Number(tp.reverse?.marketPrice)||undefined:Number(tp.normal?.marketPrice)||undefined;
             variants.push({
               id:lang+'::'+rawId+'::'+variantId,
-              cardId:pokemonCardId(lang as any,rawId),
+              cardId:lang+'::'+rawId,
               language:lang,
               variantId,
               label:languageLabel(lang)+' · '+label,
               priceEUR:Number.isFinite(Number(priceEUR))&&Number(priceEUR)>0?Number(priceEUR):undefined,
               priceUSD:Number.isFinite(Number(priceUSD))&&Number(priceUSD)>0?Number(priceUSD):undefined,
               image:typeof data.image==='string'&&data.image.length>0?data.image+'/high.webp':c.image,
-              number:numberOf(data.localId)||c.number,
+              number:data.localId!==undefined&&data.localId!==null?String(data.localId):c.number,
               setId:data.set?.id||c.setId
             });
           }
