@@ -288,7 +288,7 @@ export default function App(){
     </View>
     <View style={styles.collectionValueStrip}>
       <View style={styles.flex}><Text style={styles.kicker}>VALORE STIMATO</Text><Text style={styles.collectionValueText}>{money(conditionTotals.reduce((sum,x)=>sum+x.value,0))}</Text></View>
-      <TouchableOpacity onPress={()=>setTab('market')} style={styles.collectionMarketButton}><Text style={styles.collectionMarketButtonText}>MERCATO ›</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>setTab('market')} style={styles.collectionMarketButton}><Text style={styles.collectionMarketButtonText}>MERCATO →</Text></TouchableOpacity>
     </View>
     <View style={styles.segmentBox}>
       <TouchableOpacity onPress={()=>setCollectionLanguage('all')} style={collectionLanguage==='all'?styles.segmentOn:styles.segmentOff}><Text style={collectionLanguage==='all'?styles.segmentOnText:styles.segmentText}>🌐</Text></TouchableOpacity>
