@@ -211,6 +211,13 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   ])].slice(0,24);
   const pokemonNames=game==='pokemon'?await detectPokemonNames(text):[];
   let candidates=await candidateSearch(game,queries,numbers.locals,detected,pokemonNames);
+  // If the primary pass is weak, expand only then to the remaining languages.
+  if(game==='pokemon'&&candidates.length<3){
+    const secondary:PokemonLanguage[]=['fr','de','es','pt-br','ko','zh-tw','zh-cn'];
+    const probes=[...new Set([...numbers.locals.slice(0,2),...queries.slice(0,3)])];
+    const extra=await Promise.all(secondary.flatMap(lang=>probes.map(q=>searchCards(game,q,lang).catch(()=>[]))));
+    candidates=[...new Map([...candidates,...extra.flat()].map(card=>[card.id,card])).values()].slice(0,500);
+  }
   if(candidates.length===0){
     const emergencyQueries=[...new Set([
       ...numbers.locals.slice(0,6),
