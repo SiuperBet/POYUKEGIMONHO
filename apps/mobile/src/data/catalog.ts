@@ -56,9 +56,9 @@ export async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)
   return out;
 }
 
-export async function getSets(game:Game):Promise<CatalogSet[]>{
+export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):Promise<CatalogSet[]>{
   if(game==='pokemon'){
-    return cacheNonEmpty('catalog:pokemon:sets:v6',async()=>{
+    return cacheNonEmpty('catalog:pokemon:sets:v7',async()=>{
       const localeResults=await mapWithConcurrency(POKEMON_LANGUAGES,4,async(language)=>{
         try{
           const sets=await getJson<any[]>('https://api.tcgdex.net/v2/'+language+'/sets');
@@ -70,7 +70,24 @@ export async function getSets(game:Game):Promise<CatalogSet[]>{
           } as CatalogSet));
         }catch{return [] as CatalogSet[]}
       });
-      return localeResults.flat().filter(s=>s.cardCount!==0).filter((s,i,a)=>a.findIndex(x=>x.id===s.id)===i).sort((a,b)=>(POKEMON_LANGUAGE_PRIORITY[String(a.language||'en')]??99)-(POKEMON_LANGUAGE_PRIORITY[String(b.language||'en')]??99));
+      // The catalog UI has a localized presentation language. Italian is the default,
+      // while English is used only when an Italian set translation is unavailable.
+      // Language-specific card printings remain distinct in the catalog and scanner.
+      const all=localeResults.flat().filter(s=>s.cardCount!==0);
+      const bySource=new Map<string,CatalogSet[]>();
+      for(const set of all){
+        const source=String(set.sourceId||set.id).replace(/^\\w+:/,'');
+        const bucket=bySource.get(source)||[];
+        if(!bucket.some(x=>x.language===set.language))bucket.push(set);
+        bySource.set(source,bucket);
+      }
+      return Array.from(bySource.values()).map(bucket=>
+        bucket.find(x=>x.language===preferredLanguage)||
+        bucket.find(x=>x.language==='en')||
+        [...bucket].sort((a,b)=>(POKEMON_LANGUAGE_PRIORITY[String(a.language||'en')]??99)-(POKEMON_LANGUAGE_PRIORITY[String(b.language||'en')]??99))[0]
+      ).filter(Boolean).sort((a,b)=>
+        String(a.name).localeCompare(String(b.name),'it',{sensitivity:'base'})
+      );
     });
   }
   return cacheNonEmpty('catalog:yugioh:sets:v4',async()=>{
@@ -93,7 +110,7 @@ export async function hydrateSetDates(game:Game,sets:CatalogSet[]):Promise<Catal
   });
   const byId=new Map(details.map(s=>[s.id,s]));
   const hydrated=sets.map(s=>byId.get(s.id)||s);
-  void AsyncStorage.setItem('catalog:pokemon:sets:v6',JSON.stringify(hydrated));
+  void AsyncStorage.setItem('catalog:pokemon:sets:v7',JSON.stringify(hydrated));
   return hydrated;
 }
 
@@ -110,7 +127,7 @@ function priceFromYgo(card:any){
   return Number.isFinite(n)&&n>0?n:undefined;
 }
 
-export async function getPokemonSetCards(setId:string,language:PokemonLanguage='en'):Promise<CatalogCard[]>{
+export async function getPokemonSetCards(setId:string,language:PokemonLanguage='it'):Promise<CatalogCard[]>{
   const key='catalog:pokemon:set:v5:'+language+':'+setId;
   return cacheNonEmpty(key,async()=>{
     let set:any={};
@@ -139,7 +156,7 @@ export async function getPokemonSetCards(setId:string,language:PokemonLanguage='
   });
 }
 
-export async function getPokemonMasterSetCards(setId:string,language:PokemonLanguage='en'):Promise<CatalogCard[]>{
+export async function getPokemonMasterSetCards(setId:string,language:PokemonLanguage='it'):Promise<CatalogCard[]>{
   const key='catalog:pokemon:masterset:v1:'+language+':'+setId;
   return cacheNonEmpty(key,async()=>{
     const base=await getPokemonSetCards(setId,language);
