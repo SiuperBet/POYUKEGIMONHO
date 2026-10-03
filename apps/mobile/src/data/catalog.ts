@@ -94,7 +94,12 @@ export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):
       const is30th=(name:string)=>/(30th\s+celebration|30(?:°|º)?\s*(?:anniversary|anniversario))/i.test(name);
       const isClassic=(name:string)=>/(classic\s+collection|collezione\s+classica)/i.test(name);
       const parent=selected.find(s=>is30th(String(s.name))&&!isClassic(String(s.name)));
-      const classic=selected.filter(s=>is30th(String(s.name))&&isClassic(String(s.name)));
+      const classic=parent?selected.filter(s=>{
+        if(!isClassic(String(s.name))||s.id===parent.id)return false;
+        const sameSeries=String(s.seriesId||'').toLowerCase()===String(parent.seriesId||'').toLowerCase();
+        const sameDate=String(s.releaseDate||'')!==''&&String(s.releaseDate||'')===String(parent.releaseDate||'');
+        return is30th(String(s.name))||sameSeries||sameDate;
+      }):[];
       if(parent&&classic.length){
         const sameLanguage=classic.find(s=>String(s.language||'')===String(parent.language||''));
         if(sameLanguage){
