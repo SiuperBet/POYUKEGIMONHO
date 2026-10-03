@@ -4,7 +4,7 @@ export type Game='pokemon'|'yugioh';
 export type PokemonLanguage='en'|'fr'|'es'|'it'|'pt'|'pt-br'|'pt-pt'|'de'|'nl'|'pl'|'ru'|'ja'|'ko'|'zh-tw'|'id'|'th'|'zh-cn';
 export const POKEMON_LANGUAGES:PokemonLanguage[]=['en','it','fr','es','de','pt-br','pt','pt-pt','nl','pl','ru','ja','ko','zh-tw','zh-cn','id','th'];
 export const POKEMON_LANGUAGE_PRIORITY:Record<string,number>={it:0,en:1,fr:2,de:3,es:4,pt:5,'pt-br':5,ja:6,'zh-tw':7,'zh-cn':8,ko:9,nl:10,pl:11,ru:12,id:13,th:14};
-const POKEMON_LANGUAGE_LABEL:Record<PokemonLanguage,string>={en:'English',it:'Italiano',fr:'Français',es:'Español',de:'Deutsch',pt:'Português','pt-br':'Português BR','pt-pt':'Português PT',nl:'Nederlands',pl:'Polski',ru:'Русский',ja:'日本語',ko:'한국어','zh-tw':'繁體中文','zh-cn':'简体中文',id:'Bahasa Indonesia',th:'ไทย'};
+export const POKEMON_LANGUAGE_LABEL:Record<PokemonLanguage,string>={en:'English',it:'Italiano',fr:'Français',es:'Español',de:'Deutsch',pt:'Português','pt-br':'Português BR','pt-pt':'Português PT',nl:'Nederlands',pl:'Polski',ru:'Русский',ja:'日本語',ko:'한국어','zh-tw':'繁體中文','zh-cn':'简体中文',id:'Bahasa Indonesia',th:'ไทย'};
 export type CatalogCard={
   id:string; game:Game; name:string; setId?:string; setName?:string; number?:string;
   rarity?:string; image?:string; priceEUR?:number; priceUSD?:number; trend7EUR?:number; trend30EUR?:number; updatedAt?:string; releaseDate?:string;
