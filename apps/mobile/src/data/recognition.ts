@@ -193,7 +193,7 @@ async function candidateSearch(game:Game,queries:string[],numberLocals:string[],
   const limitedQueries=queries.slice(0,6); const limitedLanguages=game==='pokemon'?[...(detected?[detected]:[]),'it','en','ja']:[undefined];
   for(const q of limitedQueries)for(const lang of [...new Set(limitedLanguages)])requests.push(searchCards(game,q,lang as any).catch(()=>[]));
   if(game==='pokemon'){
-    if(candidates.length<8)for(const name of pokemonNames.slice(0,1))requests.push(getPokemonCardsForPokemon(name).catch(()=>[]));
+    for(const name of pokemonNames.slice(0,1))requests.push(getPokemonCardsForPokemon(name).catch(()=>[]));
     for(const local of numberLocals.slice(0,4))for(const lang of languages)requests.push(searchCards(game,local,lang as any).catch(()=>[]));
   }
   const batches=await Promise.all(requests);
