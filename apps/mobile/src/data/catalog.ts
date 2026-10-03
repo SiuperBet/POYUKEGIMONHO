@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type Game='pokemon'|'yugioh';
 export type PokemonLanguage='en'|'fr'|'es'|'it'|'pt'|'pt-br'|'pt-pt'|'de'|'nl'|'pl'|'ru'|'ja'|'ko'|'zh-tw'|'id'|'th'|'zh-cn';
 export const POKEMON_LANGUAGES:PokemonLanguage[]=['en','it','fr','es','de','pt-br','pt','pt-pt','nl','pl','ru','ja','ko','zh-tw','zh-cn','id','th'];
-export const POKEMON_LANGUAGE_LABEL:Record<PokemonLanguage,string>={en:'English',it:'Italiano',fr:'Français',es:'Español',de:'Deutsch',pt:'Português','pt-br':'Português BR','pt-pt':'Português PT',nl:'Nederlands',pl:'Polski',ru:'Русский',ja:'日本語',ko:'한국어','zh-tw':'繁體中文','zh-cn':'简体中文',id:'Bahasa Indonesia',th:'ไทย'};
+export const POKEMON_LANGUAGE_PRIORITY:Record<string,number>={it:0,en:1,fr:2,de:3,es:4,pt:5,'pt-br':5,ja:6,'zh-tw':7,'zh-cn':8,ko:9,nl:10,pl:11,ru:12,id:13,th:14};
+const POKEMON_LANGUAGE_LABEL:Record<PokemonLanguage,string>={en:'English',it:'Italiano',fr:'Français',es:'Español',de:'Deutsch',pt:'Português','pt-br':'Português BR','pt-pt':'Português PT',nl:'Nederlands',pl:'Polski',ru:'Русский',ja:'日本語',ko:'한국어','zh-tw':'繁體中文','zh-cn':'简体中文',id:'Bahasa Indonesia',th:'ไทย'};
 export type CatalogCard={
   id:string; game:Game; name:string; setId?:string; setName?:string; number?:string;
   rarity?:string; image?:string; priceEUR?:number; priceUSD?:number; trend7EUR?:number; trend30EUR?:number; updatedAt?:string; releaseDate?:string;
@@ -69,7 +70,7 @@ export async function getSets(game:Game):Promise<CatalogSet[]>{
           } as CatalogSet));
         }catch{return [] as CatalogSet[]}
       });
-      return localeResults.flat().filter(s=>s.cardCount!==0).filter((s,i,a)=>a.findIndex(x=>x.id===s.id)===i);
+      return localeResults.flat().filter(s=>s.cardCount!==0).filter((s,i,a)=>a.findIndex(x=>x.id===s.id)===i).sort((a,b)=>(POKEMON_LANGUAGE_PRIORITY[String(a.language||'en')]??99)-(POKEMON_LANGUAGE_PRIORITY[String(b.language||'en')]??99));
     });
   }
   return cacheNonEmpty('catalog:yugioh:sets:v4',async()=>{
@@ -270,7 +271,7 @@ export async function getPokemonCardsForPokemon(pokemonName:string):Promise<Cata
         });
       }
     }
-    return out.sort((a,b)=>String(a.sourceId||a.id).localeCompare(String(b.sourceId||b.id),undefined,{numeric:true,sensitivity:'base'}));
+    return out.sort((a,b)=>{const la=POKEMON_LANGUAGE_PRIORITY[String(a.language||'en')]??99;const lb=POKEMON_LANGUAGE_PRIORITY[String(b.language||'en')]??99;if(la!==lb)return la-lb;return String(a.sourceId||a.id).localeCompare(String(b.sourceId||b.id),undefined,{numeric:true,sensitivity:'base'})});
   });
 }
 
@@ -360,7 +361,7 @@ export async function searchCards(game:Game,query:string,language?:PokemonLangua
       const image=typeof c.image==='string'&&c.image.length>0?c.image+'/high.webp':undefined;
       return {card:{id:pokemonCardId(lang,rawId),sourceId:rawId,printingId:pokemonCardId(lang,rawId),language:lang,game:'pokemon' as const,name:c.name,setId:c.set?.id,setName:c.set?.name,number,rarity:c.rarity,image,priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined,updatedAt:c.updated},hits:tokenHits,exact:hay.includes(normalized)};
     });
-    const result=mapped.sort((a,b)=>b.exact===a.exact?(b.hits-a.hits):b.exact?1:-1).slice(0,100).map(x=>x.card);
+    const result=mapped.sort((a,b)=>{const langA=POKEMON_LANGUAGE_PRIORITY[String(a.card.language||'en')]??99;const langB=POKEMON_LANGUAGE_PRIORITY[String(b.card.language||'en')]??99;const signalA=(b.exact===a.exact?(b.hits-a.hits):b.exact?1:-1);const signalB=0;return signalA||langA-langB}).slice(0,100).map(x=>x.card);
     if(!language&&result.length){
       // Una ricerca con tastiera latina deve comunque mostrare le stampe
       // giapponesi/cinesi/coreane ecc. della stessa carta: l'utente non deve
