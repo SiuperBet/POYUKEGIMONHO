@@ -290,7 +290,39 @@ export async function getPokemonCardsForPokemon(pokemonName:string):Promise<Cata
         });
       }
     }
-    return out.sort((a,b)=>{const la=POKEMON_LANGUAGE_PRIORITY[String(a.language||'en')]??99;const lb=POKEMON_LANGUAGE_PRIORITY[String(b.language||'en')]??99;if(la!==lb)return la-lb;return String(a.sourceId||a.id).localeCompare(String(b.sourceId||b.id),undefined,{numeric:true,sensitivity:'base'})});
+    // Italian is the default physical printing for users in Italy. Some localized-name
+    // searches can miss Italian cards, so recover them by the stable card ID from English results.
+    const englishCards=out.filter(c=>String(c.language||'en')==='en');
+    const italianBySource=new Map(out.filter(c=>String(c.language||'')==='it').map(c=>[String(c.sourceId||''),c]));
+    const missingItalian=englishCards.filter(c=>{const raw=String(c.sourceId||'');return raw&&!italianBySource.has(raw)});
+    if(missingItalian.length){
+      const recovered=await mapWithConcurrency(missingItalian.slice(0,120),6,async(base)=>{
+        const raw=String(base.sourceId||'');
+        if(!raw)return null;
+        const data=await getJson<any>('https://api.tcgdex.net/v2/it/cards/'+encodeURIComponent(raw)).catch(()=>null);
+        if(!data)return null;
+        const image=typeof data.image==='string'&&data.image.length>0?data.image+'/low.webp':base.image;
+        return {
+          ...base,
+          id:pokemonCardId('it',raw),
+          sourceId:raw,
+          printingId:pokemonCardId('it',raw),
+          language:'it' as PokemonLanguage,
+          name:String(data.name||base.name),
+          setId:data.set?.id||base.setId,
+          setName:data.set?.name||base.setName,
+          number:numberOf(data.localId)||base.number,
+          rarity:data.rarity||base.rarity,
+          image
+        } as CatalogCard;
+      });
+      for(const card of recovered)if(card){italianBySource.set(String(card.sourceId||''),card);}
+    }
+    const preferred=englishCards.map(c=>italianBySource.get(String(c.sourceId||''))||c);
+    const otherItalian=out.filter(c=>String(c.language||'')==='it'&&!preferred.some(x=>String(x.sourceId||'')===String(c.sourceId||'')));
+    const preferredIds=new Set(preferred.map(c=>c.id));
+    for(const c of otherItalian)if(!preferredIds.has(c.id))preferred.push(c);
+    return preferred.sort((a,b)=>String(a.sourceId||a.id).localeCompare(String(b.sourceId||b.id),undefined,{numeric:true,sensitivity:'base'}));
   });
 }
 
