@@ -99,6 +99,10 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
     <View style={styles.canvas} onLayout={layout}>
       <Image source={{uri}} style={styles.image} resizeMode="contain"/>
       <View pointerEvents="none" style={styles.outerFrame}/>
+      <View pointerEvents="none" style={[styles.edgeGuide,styles.edgeTop,{opacity:detected?1:.55}]}/>
+      <View pointerEvents="none" style={[styles.edgeGuide,styles.edgeRight,{opacity:detected?1:.55}]}/>
+      <View pointerEvents="none" style={[styles.edgeGuide,styles.edgeBottom,{opacity:detected?1:.55}]}/>
+      <View pointerEvents="none" style={[styles.edgeGuide,styles.edgeLeft,{opacity:detected?1:.55}]}/>
       <View pointerEvents="none" style={[styles.printFrame,{
         left:inner.left,top:inner.top,width:inner.width,height:inner.height
       }]}/>
@@ -160,8 +164,9 @@ const styles=StyleSheet.create({
   printFrame:{position:'absolute',borderWidth:2,borderColor:'#fff',borderStyle:'dashed',borderRadius:4},
   detectBadge:{position:'absolute',left:10,top:10,backgroundColor:'#10130c',borderRadius:10,paddingHorizontal:8,paddingVertical:6,flexDirection:'row',alignItems:'center',gap:5},
   detectText:{color:'#d8ff9c',fontSize:8,fontWeight:'900'},
-  detectBadge:{position:'absolute',left:10,top:10,backgroundColor:'#10130c',borderRadius:10,paddingHorizontal:8,paddingVertical:6,flexDirection:'row',alignItems:'center',gap:5},
-  detectText:{color:'#d8ff9c',fontSize:8,fontWeight:'900'},
+  edgeGuide:{position:'absolute',backgroundColor:'#b8ff5a',borderRadius:2},
+  edgeTop:{left:0,right:0,top:1,height:3},edgeRight:{right:1,top:0,bottom:0,width:3},
+  edgeBottom:{left:0,right:0,bottom:1,height:3},edgeLeft:{left:1,top:0,bottom:0,width:3},
   handle:{position:'absolute',width:28,height:28,borderRadius:14,backgroundColor:'#10130c',borderWidth:2,borderColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
   leftHandle:{left:4},rightHandle:{right:4},topHandle:{top:4},bottomHandle:{bottom:4},
   handleDot:{width:8,height:8,borderRadius:4,backgroundColor:'#b8ff5a'},
