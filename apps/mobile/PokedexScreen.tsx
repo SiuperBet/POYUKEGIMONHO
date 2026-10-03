@@ -61,10 +61,19 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
 
   const ownedSet=useMemo(()=>{
     const set=new Set<number>();
-    const ownedNames=new Set(collection.filter(c=>c.game==='pokemon').map(c=>normalize(c.name)));
-    for(const p of pokemon)if(ownedNames.has(normalize(p.name))||[...ownedNames].some(n=>n.includes(normalize(p.name))))set.add(p.id);
+    const ownedNames=[...new Set(collection.filter(c=>c.game==='pokemon').map(c=>normalize(c.name)).filter(Boolean))];
+    const exact=new Set(ownedNames);
+    for(const p of pokemon){
+      const name=normalize(p.name);
+      if(exact.has(name)||ownedNames.some(n=>n.includes(name)))set.add(p.id);
+    }
     return set;
   },[collection,pokemon]);
+
+  const visibleOwnedCount=useMemo(
+    ()=>visible.reduce((count,p)=>count+(ownedSet.has(p.id)?1:0),0),
+    [visible,ownedSet]
+  );
 
   const isCardOwned=useMemo(()=>{
     const owned=collection.filter(c=>c.game==='pokemon');
@@ -153,7 +162,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
       <View style={styles.modeRow}><TouchableOpacity onPress={()=>setMode('regions')} style={mode==='regions'?styles.modeOn:styles.modeOff}><Text style={mode==='regions'?styles.modeOnText:styles.modeText}>Regioni</Text></TouchableOpacity><TouchableOpacity onPress={()=>setMode('national')} style={mode==='national'?styles.modeOn:styles.modeOff}><Text style={mode==='national'?styles.modeOnText:styles.modeText}>Nazionale</Text></TouchableOpacity></View>
       <Text style={styles.caption}>{mode==='national'?NATIONAL+' Pokémon in ordine nazionale':'10 raccolte regionali · ogni Pokémon apre tutte le sue carte TCG'}</Text>
     </View>
-    {loading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico il Pokédex…</Text></View>:<SectionList style={styles.dexList} sections={sections as any} keyExtractor={(item:DexRow,index:number)=>String(item.items[0]?.id||index)} renderSectionHeader={renderSectionHeader as any} renderItem={renderItem as any} contentContainerStyle={styles.list} stickySectionHeadersEnabled={false} initialNumToRender={18} maxToRenderPerBatch={18} updateCellsBatchingPeriod={50} windowSize={7} removeClippedSubviews ListHeaderComponent={mode==='regions'?<TouchableOpacity activeOpacity={0.88} onPress={()=>setMode('national')} style={styles.nationalHero}><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>Nazionale</Text><Text style={styles.sectionCount}>{visible.filter(p=>ownedSet.has(p.id)).length}/{NATIONAL}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:((Math.min(1,visible.filter(p=>ownedSet.has(p.id)).length/NATIONAL)*100)+'%') as `${number}%`}]}/></View></View><View style={styles.starters}>{[133,25,448].map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View></TouchableOpacity>:null} ListEmptyComponent={<Text style={styles.empty}>Nessun Pokémon trovato.</Text>}/>}
+    {loading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico il Pokédex…</Text></View>:<SectionList style={styles.dexList} sections={sections as any} keyExtractor={(item:DexRow,index:number)=>String(item.items[0]?.id||index)} renderSectionHeader={renderSectionHeader as any} renderItem={renderItem as any} contentContainerStyle={styles.list} stickySectionHeadersEnabled={false} initialNumToRender={18} maxToRenderPerBatch={18} updateCellsBatchingPeriod={50} windowSize={7} removeClippedSubviews ListHeaderComponent={mode==='regions'?<TouchableOpacity activeOpacity={0.88} onPress={()=>setMode('national')} style={styles.nationalHero}><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>Nazionale</Text><Text style={styles.sectionCount}>{visibleOwnedCount}/{NATIONAL}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:((Math.min(1,visibleOwnedCount/NATIONAL)*100)+'%') as `${number}%`}]}/></View></View><View style={styles.starters}>{[133,25,448].map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View></TouchableOpacity>:null} ListEmptyComponent={<Text style={styles.empty}>Nessun Pokémon trovato.</Text>}/>}
   </View>;
 }
 
