@@ -48,7 +48,7 @@ function detectLanguageCode(text:string):PokemonLanguage|undefined{
   };
   const scores=new Map<PokemonLanguage,number>();
   for(const [lang,words] of Object.entries(signals) as [PokemonLanguage,string[]][]){
-    const score=words.reduce((n,w)=>n+(new RegExp('\\\\b'+w+'\\\\b','i').test(t)?1:0),0);
+    const score=words.reduce((n,w)=>n+(new RegExp('\\b'+w+'\\b','i').test(t)?1:0),0);
     if(score>0)scores.set(lang,score);
   }
   const best=[...scores.entries()].sort((a,b)=>b[1]-a[1]);
