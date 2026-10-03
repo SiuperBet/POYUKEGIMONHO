@@ -182,3 +182,4 @@ const styles=StyleSheet.create({
   primary:{flex:1,backgroundColor:'#b8ff5a',paddingVertical:13,borderRadius:12,alignItems:'center'},
   primaryText:{color:'#10130c',fontWeight:'900',fontSize:11}
 });
+// Build trigger: GitHub Actions
