@@ -15,7 +15,7 @@ export type CatalogCard={
 };
 export type CatalogSet={
   id:string;game:Game;name:string;code?:string;cardCount?:number;releaseDate?:string;logo?:string;symbol?:string;
-  seriesId?:string;seriesName?:string;seriesLogo?:string;language?:PokemonLanguage|string;sourceId?:string;
+  seriesId?:string;seriesName?:string;seriesLogo?:string;language?:PokemonLanguage|string;sourceId?:string;subSetIds?:string[];
 };
 
 async function cache<T>(key:string,loader:()=>Promise<T>):Promise<T>{
@@ -60,7 +60,7 @@ export async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)
 
 export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):Promise<CatalogSet[]>{
   if(game==='pokemon'){
-    return cacheNonEmpty('catalog:pokemon:sets:v7',async()=>{
+    return cacheNonEmpty('catalog:pokemon:sets:v8',async()=>{
       const localeResults=await mapWithConcurrency(POKEMON_LANGUAGES,4,async(language)=>{
         try{
           const sets=await getJson<any[]>('https://api.tcgdex.net/v2/'+language+'/sets');
@@ -83,11 +83,25 @@ export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):
         if(!bucket.some(x=>x.language===set.language))bucket.push(set);
         bySource.set(source,bucket);
       }
-      return Array.from(bySource.values()).map(bucket=>
+      const selected=Array.from(bySource.values()).map(bucket=>
         bucket.find(x=>x.language===preferredLanguage)||
         bucket.find(x=>x.language==='en')||
         [...bucket].sort((a,b)=>(POKEMON_LANGUAGE_PRIORITY[String(a.language||'en')]??99)-(POKEMON_LANGUAGE_PRIORITY[String(b.language||'en')]??99))[0]
-      ).filter(Boolean).sort((a,b)=>
+      ).filter(Boolean) as CatalogSet[];
+
+      // "Classic Collection" is a 30-card subset of the 30th Celebration expansion,
+      // not a standalone expansion. Keep one expansion entry and load the subset inside it.
+      const parent=selected.find(s=>/30th\s+celebration/i.test(String(s.name))&&!/classic\s+collection/i.test(String(s.name)));
+      const classic=selected.filter(s=>/30th\s+celebration/i.test(String(s.name))&&/classic\s+collection/i.test(String(s.name)));
+      if(parent&&classic.length){
+        const sameLanguage=classic.find(s=>String(s.language||'')===String(parent.language||''));
+        if(sameLanguage){
+          parent.subSetIds=[String(parent.sourceId||parent.id).replace(/^\\w+:/,''),String(sameLanguage.sourceId||sameLanguage.id).replace(/^\\w+:/,'')];
+          parent.cardCount=(Number(parent.cardCount)||0)+(Number(sameLanguage.cardCount)||0);
+        }
+      }
+      const hiddenClassicIds=new Set(classic.map(s=>s.id));
+      return selected.filter(s=>!hiddenClassicIds.has(s.id)).sort((a,b)=>
         String(a.name).localeCompare(String(b.name),'it',{sensitivity:'base'})
       );
     });
@@ -112,7 +126,7 @@ export async function hydrateSetDates(game:Game,sets:CatalogSet[]):Promise<Catal
   });
   const byId=new Map(details.map(s=>[s.id,s]));
   const hydrated=sets.map(s=>byId.get(s.id)||s);
-  void AsyncStorage.setItem('catalog:pokemon:sets:v7',JSON.stringify(hydrated));
+  void AsyncStorage.setItem('catalog:pokemon:sets:v8',JSON.stringify(hydrated));
   return hydrated;
 }
 
