@@ -61,15 +61,17 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
 
   const processCapturedPhoto=async(uri:string)=>{
     setLastPhoto(uri);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);
-    setMessage('Bordo carta verificato • avvio riconoscimento multilingua…');
-    const {recognizeCardImage}=await import('../data/recognition');
-    const identified=await recognizeCardImage(uri,game).catch(()=>null);
+    setMessage('Carta acquisita • controllo qualità e riconoscimento multilingua…');
+    const [{recognizeCardImage},{analyzeCardCondition}]=await Promise.all([import('../data/recognition'),import('../data/visualGrading')]);
+    const [identified,analysis]=await Promise.all([recognizeCardImage(uri,game).catch(()=>null),analyzeCardCondition(uri).catch(()=>null)]);
     setRecognition(identified);
     setRecognizedVariants(identified?.candidates||[]);
     setSelectedRecognizedCard(identified?.card||null);
-    setMessage(identified?.card?'Carta riconosciuta automaticamente.':identified?.candidates?.length?'Possibile corrispondenza: scegli una delle carte proposte.':'Carta acquisita: nessuna corrispondenza dal catalogo, verifica manualmente.');
+    if(analysis){setVisualAnalysis(analysis);if(!conditionTouched)setSelectedCondition(analysis.condition);}
+    setMessage(identified?.card?'Carta riconosciuta • grading preliminare completato.':identified?.candidates?.length?'Possibile corrispondenza • scegli la stampa corretta.':'Carta acquisita • nessuna corrispondenza certa nel catalogo.');
     const savedId=await onCaptured?.(uri,identified?.card||identified?.candidates?.[0]);
     setGradedId(savedId);
+    if(savedId&&analysis){await onVisualAnalysis?.(savedId,analysis);if(!conditionTouched)await onConditionSelected?.(savedId,analysis.condition);}
     setCollectionSaved(false);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -171,6 +173,16 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
 
     {error&&<View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}
 
+    <View style={styles.scanChecklist}>
+      <View style={styles.scanChecklistHead}><Text style={styles.scanChecklistTitle}>CONTROLLO SCANSIONE</Text><Text style={styles.scanChecklistHint}>locale · rapido · senza upload duplicati</Text></View>
+      <View style={styles.scanChecks}>
+        <View style={styles.scanCheck}><Text style={styles.scanCheckIcon}>{lastPhoto?'✓':'1'}</Text><View><Text style={styles.scanCheckTitle}>4 lati</Text><Text style={styles.scanCheckText}>bordo carta</Text></View></View>
+        <View style={styles.scanCheck}><Text style={styles.scanCheckIcon}>{scanGeometry?.ok?'✓':'2'}</Text><View><Text style={styles.scanCheckTitle}>Prospettiva</Text><Text style={styles.scanCheckText}>{scanGeometry?.ok?'corretta':'da verificare'}</Text></View></View>
+        <View style={styles.scanCheck}><Text style={styles.scanCheckIcon}>{recognition?'✓':'3'}</Text><View><Text style={styles.scanCheckTitle}>Riconoscimento</Text><Text style={styles.scanCheckText}>{recognition?'multilingua':'in attesa'}</Text></View></View>
+        <View style={styles.scanCheck}><Text style={styles.scanCheckIcon}>{visualAnalysis?'✓':'4'}</Text><View><Text style={styles.scanCheckTitle}>Condizione</Text><Text style={styles.scanCheckText}>{visualAnalysis?visualAnalysis.condition:'automatica'}</Text></View></View>
+      </View>
+    </View>
+
     {lastPhoto&&<View style={styles.resultPanel}>
       <View style={styles.gameRow}><Text style={styles.gameLabel}>GIOCO</Text><TouchableOpacity onPress={()=>setGame('pokemon')} style={game==='pokemon'?styles.gameOn:styles.gameOff}><Text style={game==='pokemon'?styles.gameOnText:styles.gameOffText}>Pokémon</Text></TouchableOpacity><TouchableOpacity onPress={()=>setGame('yugioh')} style={game==='yugioh'?styles.gameOn:styles.gameOff}><Text style={game==='yugioh'?styles.gameOnText:styles.gameOffText}>Yu-Gi-Oh!</Text></TouchableOpacity></View>
       <View style={styles.edgeVerified}><View style={styles.edgeDot}/><View style={styles.flex}><Text style={styles.edgeTitle}>BORDO CARTA VERIFICATO</Text><Text style={styles.edgeCopy}>{scanGeometry?.ok?'4 lati • 4 angoli • proporzione corretta':'Proporzione da verificare prima del salvataggio'}</Text></View><Text style={styles.edgeCheck}>✓</Text></View>
@@ -204,8 +216,8 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
 }
 
 const styles=StyleSheet.create({
-  root:{flex:1,backgroundColor:'#050608'},scrollContent:{paddingHorizontal:16,paddingTop:18,paddingBottom:160},
-  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14},headerTitle:{flex:1,marginLeft:10},exitButton:{width:40,height:40,borderRadius:12,backgroundColor:'#20252d',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#303640'},exitText:{color:'#f5f7fa',fontSize:30,lineHeight:32,fontWeight:'700'},
+  root:{flex:1,backgroundColor:'#07090d'},scrollContent:{paddingHorizontal:16,paddingTop:18,paddingBottom:160},
+  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14,paddingHorizontal:2},headerTitle:{flex:1,marginLeft:10},exitButton:{width:40,height:40,borderRadius:12,backgroundColor:'#20252d',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#303640'},exitText:{color:'#f5f7fa',fontSize:30,lineHeight:32,fontWeight:'700'},
   kicker:{color:'#9aa3af',fontSize:10,fontWeight:'900',letterSpacing:1},
   title:{color:'#f5f7fa',fontSize:25,fontWeight:'900',marginTop:4},
   nativeBadge:{backgroundColor:'#b8ff5a',paddingHorizontal:10,paddingVertical:7,borderRadius:10},
@@ -229,5 +241,14 @@ const styles=StyleSheet.create({
   actions:{flexDirection:'row',gap:9,marginTop:13},primary:{flex:1,backgroundColor:'#b8ff5a',paddingVertical:12,borderRadius:12,alignItems:'center'},primaryText:{color:'#10130c',fontWeight:'900',fontSize:12},secondary:{flex:1,backgroundColor:'#20252d',paddingVertical:12,borderRadius:12,alignItems:'center'},secondaryText:{color:'#f5f7fa',fontWeight:'900',fontSize:12},collectionButton:{marginTop:10,backgroundColor:'#20252d',paddingVertical:13,borderRadius:12,alignItems:'center',borderWidth:1,borderColor:'#b8ff5a'},collectionButtonText:{color:'#b8ff5a',fontWeight:'900',fontSize:12},backButton:{marginTop:10,backgroundColor:'#20252d',paddingVertical:12,borderRadius:12,alignItems:'center',borderWidth:1,borderColor:'#4a525e'},backButtonText:{color:'#f5f7fa',fontSize:11,fontWeight:'900'},backPreview:{marginTop:10,padding:10,borderRadius:12,backgroundColor:'#0d1014',borderWidth:1,borderColor:'#303640',flexDirection:'row',alignItems:'center',gap:10},backThumb:{width:58,height:82,borderRadius:7,backgroundColor:'#080a0d'},backTitle:{color:'#b8ff5a',fontSize:11,fontWeight:'900'},backCopy:{color:'#9aa3af',fontSize:10,marginTop:3},collectionSaved:{backgroundColor:'#173016',borderColor:'#426b27'},printingBox:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#10151b',borderWidth:1,borderColor:'#4a525e'},printingTitle:{color:'#f5f7fa',fontSize:11,fontWeight:'900'},printingHint:{color:'#9aa3af',fontSize:10,lineHeight:15,marginTop:5},printingRow:{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:9},printingOn:{backgroundColor:'#b8ff5a',paddingHorizontal:10,paddingVertical:8,borderRadius:9,minWidth:72},printingOff:{backgroundColor:'#20252d',paddingHorizontal:10,paddingVertical:8,borderRadius:9,minWidth:72},printingOnText:{color:'#10130c',fontSize:11,fontWeight:'900'},printingOffText:{color:'#f5f7fa',fontSize:11,fontWeight:'900'},printingSubOn:{color:'#263018',fontSize:8,fontWeight:'800',marginTop:2},printingSubOff:{color:'#9aa3af',fontSize:8,fontWeight:'800',marginTop:2},
   flex:{flex:1},analysisBox:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#11151a',borderWidth:1,borderColor:'#4a525e'},analysisHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},analysisTitle:{color:'#f5f7fa',fontSize:11,fontWeight:'900'},analysisScore:{color:'#b8ff5a',fontSize:20,fontWeight:'900'},analysisSuggestion:{color:'#9aa3af',fontSize:11,marginTop:6},analysisStrong:{color:'#b8ff5a',fontWeight:'900'},defectRow:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:9},defectChip:{backgroundColor:'#20252d',paddingHorizontal:8,paddingVertical:5,borderRadius:8},defectChipText:{color:'#d8dde5',fontSize:9,fontWeight:'800'},analysisNote:{color:'#9aa3af',fontSize:10,lineHeight:15,marginTop:8},edgeVerified:{marginBottom:12,padding:12,borderRadius:14,backgroundColor:'#0d1510',borderWidth:1,borderColor:'#426b27',flexDirection:'row',alignItems:'center',gap:10},edgeDot:{width:10,height:10,borderRadius:5,backgroundColor:'#b8ff5a'},edgeTitle:{color:'#b8ff5a',fontSize:11,fontWeight:'900'},edgeCopy:{color:'#d8ff9c',fontSize:10,marginTop:3},edgeCheck:{color:'#b8ff5a',fontSize:22,fontWeight:'900'},
   error:{marginTop:10,padding:11,borderRadius:12,backgroundColor:'#2a1518',borderWidth:1,borderColor:'#5a252b'},errorText:{color:'#ff9b9b',fontSize:11},
+  scanChecklist:{marginTop:10,padding:12,borderRadius:18,backgroundColor:'#0e131b',borderWidth:1,borderColor:'#273142'},
+  scanChecklistHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},
+  scanChecklistTitle:{color:'#f5f7fa',fontSize:11,fontWeight:'900',letterSpacing:.7},
+  scanChecklistHint:{color:'#667184',fontSize:8},
+  scanChecks:{flexDirection:'row',gap:6,marginTop:10},
+  scanCheck:{flex:1,minHeight:62,backgroundColor:'#121923',borderRadius:12,borderWidth:1,borderColor:'#222d3b',padding:7},
+  scanCheckIcon:{color:'#b8ff5a',fontSize:11,fontWeight:'900'},
+  scanCheckTitle:{color:'#e9edf3',fontSize:9,fontWeight:'900',marginTop:3},
+  scanCheckText:{color:'#7f8998',fontSize:8,marginTop:2},
   infoRow:{flexDirection:'row',gap:8,marginTop:12},info:{flex:1,padding:11,borderRadius:13,backgroundColor:'#14171c',borderWidth:1,borderColor:'#2a3038'},infoTitle:{color:'#b8ff5a',fontSize:10,fontWeight:'900'},infoCopy:{color:'#9aa3af',fontSize:9,marginTop:3,lineHeight:13}
 });
