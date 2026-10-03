@@ -361,7 +361,7 @@ export async function searchCards(game:Game,query:string,language?:PokemonLangua
       const image=typeof c.image==='string'&&c.image.length>0?c.image+'/high.webp':undefined;
       return {card:{id:pokemonCardId(lang,rawId),sourceId:rawId,printingId:pokemonCardId(lang,rawId),language:lang,game:'pokemon' as const,name:c.name,setId:c.set?.id,setName:c.set?.name,number,rarity:c.rarity,image,priceEUR:priceFromPokemon(c),trend7EUR:Number(c.pricing?.cardmarket?.avg7)||undefined,trend30EUR:Number(c.pricing?.cardmarket?.avg30)||undefined,updatedAt:c.updated},hits:tokenHits,exact:hay.includes(normalized)};
     });
-    const result=mapped.sort((a,b)=>{const langA=POKEMON_LANGUAGE_PRIORITY[String(a.card.language||'en')]??99;const langB=POKEMON_LANGUAGE_PRIORITY[String(b.card.language||'en')]??99;const signalA=(b.exact===a.exact?(b.hits-a.hits):b.exact?1:-1);const signalB=0;return signalA||langA-langB}).slice(0,100).map(x=>x.card);
+    const result=mapped.sort((a,b)=>{const signalA=(b.exact===a.exact?(b.hits-a.hits):b.exact?1:-1);const signalB=(a.exact===b.exact?(a.hits-b.hits):a.exact?1:-1);if(signalA!==signalB)return signalA-signalB;return (POKEMON_LANGUAGE_PRIORITY[String(a.card.language||'en')]??99)-(POKEMON_LANGUAGE_PRIORITY[String(b.card.language||'en')]??99)}).slice(0,100).map(x=>x.card);
     if(!language&&result.length){
       // Una ricerca con tastiera latina deve comunque mostrare le stampe
       // giapponesi/cinesi/coreane ecc. della stessa carta: l'utente non deve
