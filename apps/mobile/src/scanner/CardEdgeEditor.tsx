@@ -127,6 +127,8 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
       <View {...responders.bottom.panHandlers} style={[styles.handle,styles.bottomHandle,{left:inner.left+inner.width/2-14}]}>
         <View style={styles.handleDot}/>
       </View>
+      {detecting&&<View style={styles.detectBadge}><ActivityIndicator size="small"/><Text style={styles.detectText}>RILEVAMENTO LATI…</Text></View>}
+      {!detecting&&<View style={styles.detectBadge}><Text style={styles.detectText}>{detected?'✓ 4 LATI RILEVATI':'GUIDA MANUALE'}</Text></View>}
     </View>
 
     <View style={styles.readout}>
@@ -156,6 +158,8 @@ const styles=StyleSheet.create({
   image:{...StyleSheet.absoluteFillObject},
   outerFrame:{...StyleSheet.absoluteFillObject,borderWidth:2,borderColor:'#b8ff5a',borderRadius:12},
   printFrame:{position:'absolute',borderWidth:2,borderColor:'#fff',borderStyle:'dashed',borderRadius:4},
+  detectBadge:{position:'absolute',left:10,top:10,backgroundColor:'#10130c',borderRadius:10,paddingHorizontal:8,paddingVertical:6,flexDirection:'row',alignItems:'center',gap:5},
+  detectText:{color:'#d8ff9c',fontSize:8,fontWeight:'900'},
   detectBadge:{position:'absolute',left:10,top:10,backgroundColor:'#10130c',borderRadius:10,paddingHorizontal:8,paddingVertical:6,flexDirection:'row',alignItems:'center',gap:5},
   detectText:{color:'#d8ff9c',fontSize:8,fontWeight:'900'},
   handle:{position:'absolute',width:28,height:28,borderRadius:14,backgroundColor:'#10130c',borderWidth:2,borderColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
