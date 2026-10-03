@@ -23,26 +23,10 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
       return next;
     });
   };
-  const moveSide=(side:'top'|'right'|'bottom'|'left',dx:number,dy:number)=>{
-    setQuad(prev=>{
-      const next={...prev};
-      const a=side==='top'?'tl':side==='right'?'tr':side==='bottom'?'br':'bl';
-      const b=side==='top'?'tr':side==='right'?'br':side==='bottom'?'bl':'tl';
-      next[a]={x:clamp(start.current[a].x+dx),y:clamp(start.current[a].y+dy)};
-      next[b]={x:clamp(start.current[b].x+dx),y:clamp(start.current[b].y+dy)};
-      return next;
-    });
-  };
-
   const cornerPan=useMemo(()=>Object.fromEntries((['tl','tr','br','bl'] as const).map(key=>[key,PanResponder.create({
     onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=quad},
     onPanResponderMove:(_,g)=>moveCorner(key,g.dx/box.width,g.dy/box.height),
     onPanResponderRelease:()=>setQuad(q=>({...q,[key]:{x:snap(q[key].x),y:snap(q[key].y)}}))
-  })])),[quad,box.width,box.height]);
-
-  const sidePan=useMemo(()=>Object.fromEntries((['top','right','bottom','left'] as const).map(side=>[side,PanResponder.create({
-    onStartShouldSetPanResponder:()=>true,onPanResponderGrant:()=>{start.current=quad},
-    onPanResponderMove:(_,g)=>moveSide(side,g.dx/box.width,g.dy/box.height)
   })])),[quad,box.width,box.height]);
 
   const layout=(e:LayoutChangeEvent)=>setBox({width:Math.max(1,e.nativeEvent.layout.width),height:Math.max(1,e.nativeEvent.layout.height)});
@@ -71,14 +55,14 @@ export function CardEdgeEditor({uri,onCancel,onConfirm}:Props){
 
   return <View style={styles.root}>
     <Text style={styles.title}>Rifinitura angoli e bordi</Text>
-    <Text style={styles.hint}>Trascina i 4 angoli. Le 4 linee verdi coincidono con i bordi della carta: puoi selezionare direttamente ogni lato. Le linee restano dritte e sono sempre collegate agli angoli.</Text>
+    <Text style={styles.hint}>Sposta solo i 4 angoli. Le 4 linee verdi sono sempre collegate agli angoli e coincidono con i bordi della carta: non esistono maniglie laterali separate.</Text>
     <View style={styles.canvas} onLayout={layout}>
       <Image source={{uri}} style={styles.image} resizeMode="contain"/>
       {sides.map(s=><View key={'line-'+s.key} pointerEvents="none" style={[styles.edgeLine,lineStyle(s.a,s.b),{transform:[{rotate:angle(s.a,s.b)+'deg'}]}]}/>)}
       {sides.map(s=><View key={'hit-'+s.key} {...sidePan[s.key].panHandlers} style={[styles.sideHit,lineStyle(s.a,s.b),{transform:[{rotate:angle(s.a,s.b)+'deg'}]}]}><Text style={styles.sideLabel}>{s.label}</Text></View>)}
       {(['tl','tr','br','bl'] as const).map(k=><View key={k} {...cornerPan[k].panHandlers} style={[styles.cornerHandle,pointStyle(quad[k])]}><View style={styles.cornerDot}/><Text style={styles.cornerLabel}>{k.toUpperCase()}</Text></View>)}
     </View>
-    <View style={styles.legend}><Text style={styles.legendText}>● 4 ANGOLI</Text><Text style={styles.legendText}>━ 4 BORDI SELEZIONABILI</Text></View>
+    <View style={styles.legend}><Text style={styles.legendText}>● 4 ANGOLI</Text><Text style={styles.legendText}>━ BORDI COLLEGATI AGLI ANGOLI</Text></View>
     <View style={styles.row}>
       <TouchableOpacity style={styles.secondary} onPress={onCancel} disabled={working}><Text style={styles.secondaryText}>ANNULLA</Text></TouchableOpacity>
       <TouchableOpacity style={styles.primary} onPress={()=>void confirm()} disabled={working}><Text style={styles.primaryText}>{working?'APPLICO…':'CONFERMA GEOMETRIA'}</Text></TouchableOpacity>
@@ -93,8 +77,6 @@ const styles=StyleSheet.create({
   canvas:{height:430,borderRadius:14,overflow:'hidden',backgroundColor:'#080a0d',position:'relative'},
   image:{...StyleSheet.absoluteFillObject},
   edgeLine:{position:'absolute',height:3,backgroundColor:'#b8ff5a',borderRadius:3,transformOrigin:'left center'},
-  sideHit:{position:'absolute',height:28,backgroundColor:'rgba(184,255,90,.10)',borderRadius:14,justifyContent:'center',alignItems:'center',transformOrigin:'left center'},
-  sideLabel:{color:'#d8ff9c',fontSize:7,fontWeight:'900'},
   cornerHandle:{position:'absolute',width:28,height:28,borderRadius:14,backgroundColor:'#10130c',borderWidth:2,borderColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
   cornerDot:{width:8,height:8,borderRadius:4,backgroundColor:'#b8ff5a'},
   cornerLabel:{position:'absolute',top:29,color:'#d8ff9c',fontSize:7,fontWeight:'900'},
