@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-// [build] validate scanner UI and automatic grading pipeline
+// [build] validate scanner UI and automatic grading pipeline — side detector + centering build
 import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as RNImage,ScrollView} from 'react-native';
 import type {CatalogCard} from '../data/catalog';
 import {getPokemonSetCards,getYugiohSetCards} from '../data/catalog';
