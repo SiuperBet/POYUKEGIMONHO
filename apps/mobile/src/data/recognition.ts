@@ -73,7 +73,7 @@ function buildQueries(text:string){
   return [...new Set(queries)].slice(0,12);
 }
 
-function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:PokemonLanguage){
+function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:PokemonLanguage,numberBest?:string){
   const source=normalize(ocr);
   const compactSource=compact(ocr);
   const name=normalize(card.name);
@@ -92,13 +92,19 @@ function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:Po
     });
     if(exactLocal)score+=0.46;
     else if(locals.some(x=>String(x).replace(/^0+/,'')===rawNumber.replace(/^0+/,'').split('/')[0]))score+=0.22;
+    if(numberBest){
+      const bestLocal=String(numberBest).split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||String(numberBest);
+      const cardLocal=rawNumber.split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||rawNumber;
+      if(bestLocal && cardLocal && bestLocal!==cardLocal)score-=0.34;
+    }
   }
-  if(detected&&card.language===detected)score+=0.10;
+  if(detected&&card.language===detected)score+=0.12;
+  if(detected&&card.language&&card.language!==detected)score-=0.10;
   if(card.variantLabel){
     const v=normalize(card.variantLabel);
     if(v&&source.includes(v))score+=0.08;
   }
-  return Math.min(1,score);
+  return Math.max(0,Math.min(1,score));
 }
 
 const POKE_NAME_CACHE='cardgrade:recognition:pokemon-names:v1';
@@ -219,13 +225,22 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
     candidates=[...new Map(fallback.flat().map(c=>[c.id,c])).values()];
   }
 
-  const ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected)})).sort((a,b)=>b.score-a.score);
+  const ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
   const top=ranked[0];
   const second=ranked[1]?.score||0;
   let confidence=top?.score||0;
   if(pokemonNames.length&&top&&pokemonNames.some(n=>compact(top.card.name).includes(compact(n))))confidence=Math.max(confidence,.58);
+  // When the scan language is not reliably detectable, prefer the Italian printing
+  // for presentation/matching without overriding an explicitly detected language.
+  if(!detected&&top?.card.language==='it')confidence=Math.min(1,confidence+0.06);
+  // A clear exact number must be respected: do not auto-match a different localId.
+  if(numbers.best&&top?.card.number){
+    const a=String(numbers.best).split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||String(numbers.best);
+    const b=String(top.card.number).split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||String(top.card.number);
+    if(a&&b&&a!==b)confidence=Math.max(0,confidence-.22);
+  }
   const margin=Math.max(0,confidence-second);
-  const status=confidence>=0.78&&margin>=0.10?'matched':confidence>=0.22&&ranked.length>0?'possible':'unknown';
+  const status=confidence>=0.84&&margin>=0.14?'matched':confidence>=0.28&&ranked.length>0?'possible':'unknown';
 
   return {
     card:status==='matched'?(top?.card||null):null,
