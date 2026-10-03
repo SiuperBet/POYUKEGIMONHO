@@ -11,7 +11,7 @@ import {CardEdgeEditor} from './CardEdgeEditor';
 import type {RecognitionResult} from '../data/recognition';
 import type {VisualAnalysis} from '../data/visualGrading';
 import * as Haptics from 'expo-haptics';
-const scanDocument=async(options:any={})=>{const {default:DocumentScanner}=await import('react-native-document-scanner-plugin');return scanDocument(options)};
+const scanDocument=async(options:any={})=>{const {default:DocumentScanner}=await import('react-native-document-scanner-plugin');return DocumentScanner.scanDocument(options)};
 
 type Props={resumeGraded?:GradedItem;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
