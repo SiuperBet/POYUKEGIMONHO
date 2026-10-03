@@ -161,7 +161,7 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
     <View style={styles.header}>
       <View style={styles.headerTop}><TouchableOpacity style={styles.back} onPress={onBack}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text style={styles.title}>Pokédex</Text></View>
       <TextInput value={query} onChangeText={setQuery} placeholder="Cerca un Pokémon" placeholderTextColor="#777f91" style={styles.search}/>
-      <View style={styles.modeRow}><TouchableOpacity onPress={()=>{setExpandedRegion(null);setMode('regions');requestAnimationFrame(()=>dexListRef.current?.scrollToOffset({offset:0,animated:true}));}} style={mode==='regions'?styles.modeOn:styles.modeOff}><Text style={mode==='regions'?styles.modeOnText:styles.modeText}>Regioni</Text></TouchableOpacity><TouchableOpacity onPress={()=>{setExpandedRegion(null);setMode('national');requestAnimationFrame(()=>dexListRef.current?.scrollToOffset({offset:0,animated:true}));}} style={mode==='national'?styles.modeOn:styles.modeOff}><Text style={mode==='national'?styles.modeOnText:styles.modeText}>Nazionale</Text></TouchableOpacity></View>
+      <View style={styles.modeRow}><TouchableOpacity onPress={()=>{setExpandedRegion(null);setMode('regions');requestAnimationFrame(()=>dexListRef.current?.scrollToLocation({sectionIndex:0,itemIndex:0,animated:true}));}} style={mode==='regions'?styles.modeOn:styles.modeOff}><Text style={mode==='regions'?styles.modeOnText:styles.modeText}>Regioni</Text></TouchableOpacity><TouchableOpacity onPress={()=>{setExpandedRegion(null);setMode('national');requestAnimationFrame(()=>dexListRef.current?.scrollToOffset({offset:0,animated:true}));}} style={mode==='national'?styles.modeOn:styles.modeOff}><Text style={mode==='national'?styles.modeOnText:styles.modeText}>Nazionale</Text></TouchableOpacity></View>
       <Text style={styles.caption}>{mode==='national'?NATIONAL+' Pokémon in ordine nazionale':'10 raccolte regionali · ogni Pokémon apre tutte le sue carte TCG'}</Text>
     </View>
     {loading?<View style={styles.loading}><ActivityIndicator/><Text style={styles.muted}>Carico il Pokédex…</Text></View>:<SectionList ref={dexListRef} style={styles.dexList} sections={sections as any} keyExtractor={(item:DexRow,index:number)=>String(item.items[0]?.id||index)} renderSectionHeader={renderSectionHeader as any} renderItem={renderItem as any} contentContainerStyle={styles.list} stickySectionHeadersEnabled={false} initialNumToRender={18} maxToRenderPerBatch={18} updateCellsBatchingPeriod={50} windowSize={7} removeClippedSubviews ListHeaderComponent={mode==='regions'?<TouchableOpacity activeOpacity={0.88} onPress={()=>setMode('national')} style={styles.nationalHero}><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>Nazionale</Text><Text style={styles.sectionCount}>{visibleOwnedCount}/{NATIONAL}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:((Math.min(1,visibleOwnedCount/NATIONAL)*100)+'%') as `${number}%`}]}/></View></View><View style={styles.starters}>{[133,25,448].map(id=><Image key={id} source={{uri:sprite(id)}} style={styles.starter}/>)}</View></TouchableOpacity>:null} ListEmptyComponent={<Text style={styles.empty}>Nessun Pokémon trovato.</Text>}/>}
@@ -169,41 +169,41 @@ export function PokedexScreen({collection,onOpenCard,onScan,onBack}:{collection:
 }
 
 const styles=StyleSheet.create({
-  root:{flex:1,backgroundColor:'#050608'},
+  root:{flex:1,backgroundColor:'#07090d'},
   dexList:{flex:1},
   flex:{flex:1},
-  header:{padding:18,paddingBottom:8},
+  header:{paddingHorizontal:18,paddingTop:18,paddingBottom:10},
   topBar:{padding:18,paddingBottom:8,flexDirection:'row',alignItems:'center',gap:10},
   headerTop:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:16},
   back:{width:42,height:42,borderRadius:21,alignItems:'center',justifyContent:'center'},
   backText:{color:'#f5f7fa',fontSize:40,fontWeight:'300',lineHeight:42},
-  title:{color:'#f5f7fa',fontSize:30,fontWeight:'900'},
+  title:{color:'#f5f7fa',fontSize:30,fontWeight:'900',letterSpacing:-0.5},
   sub:{color:'#8f98a8',fontSize:11,marginTop:3},
-  search:{height:54,borderRadius:16,borderWidth:1,borderColor:'#39476e',backgroundColor:'#080b15',color:'#f5f7fa',paddingHorizontal:16,fontSize:17},
+  search:{height:52,borderRadius:16,borderWidth:1,borderColor:'#2c3547',backgroundColor:'#0d1118',color:'#f5f7fa',paddingHorizontal:16,fontSize:16,fontWeight:'600'},
   modeRow:{flexDirection:'row',gap:8,marginTop:10},
-  modeOn:{flex:1,backgroundColor:'#b8ff5a',borderRadius:12,paddingVertical:11,alignItems:'center'},
-  modeOff:{flex:1,backgroundColor:'#20252d',borderRadius:12,paddingVertical:11,alignItems:'center'},
+  modeOn:{flex:1,backgroundColor:'#b8ff5a',borderRadius:13,paddingVertical:11,alignItems:'center',shadowOpacity:.12,shadowRadius:8,shadowOffset:{width:0,height:3}},
+  modeOff:{flex:1,backgroundColor:'#151a22',borderRadius:13,paddingVertical:11,alignItems:'center',borderWidth:1,borderColor:'#283141'},
   modeOnText:{color:'#10130c',fontWeight:'900'},
   modeText:{color:'#f5f7fa',fontWeight:'800'},
   caption:{color:'#8f98a8',fontSize:11,marginTop:8},
   list:{paddingHorizontal:18,paddingBottom:150},
   row:{width:'100%',flexDirection:'row',justifyContent:'flex-start',gap:10,marginBottom:10},
-  sectionHeader:{marginTop:8,marginBottom:10,minHeight:118,backgroundColor:'#141b31',borderWidth:1,borderColor:'#303b60',borderRadius:20,overflow:'hidden',flexDirection:'row',alignItems:'center',paddingLeft:16},
+  sectionHeader:{marginTop:8,marginBottom:10,minHeight:122,backgroundColor:'#10151d',borderWidth:1,borderColor:'#273142',borderRadius:20,overflow:'hidden',flexDirection:'row',alignItems:'center',paddingLeft:16},
   sectionCopy:{flex:1},
   sectionTitleRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},
   sectionTitle:{color:'#f5f7fa',fontSize:27,fontWeight:'900'},
   sectionArrow:{color:'#d5dceb',fontSize:26,fontWeight:'700',paddingRight:10},
-  nationalHero:{marginTop:8,marginBottom:10,minHeight:118,backgroundColor:'#141b31',borderWidth:1,borderColor:'#303b60',borderRadius:20,overflow:'hidden',flexDirection:'row',alignItems:'center',paddingLeft:16},
+  nationalHero:{marginTop:8,marginBottom:10,minHeight:122,backgroundColor:'#10151d',borderWidth:1,borderColor:'#273142',borderRadius:20,overflow:'hidden',flexDirection:'row',alignItems:'center',paddingLeft:16},
   sectionCount:{color:'#d5dceb',fontSize:18,fontWeight:'700',marginTop:2},
   progressTrack:{height:9,borderRadius:5,backgroundColor:'#e1e5ec',marginTop:9,overflow:'hidden',width:'92%'},
   progressFill:{height:'100%',backgroundColor:'#8e2bd7'},
   starters:{width:155,height:'100%',flexDirection:'row',alignItems:'flex-end',justifyContent:'center',paddingRight:5},
   starter:{width:66,height:66,marginLeft:-8},
-  pokemonCard:{width:'31.9%',height:172,backgroundColor:'#10152a',borderRadius:15,borderWidth:1,borderColor:'#39476e',padding:7,position:'relative'},pokemonCardMissing:{opacity:0.46,borderColor:'#2b3346'},pokemonCardGhost:{width:'31.9%',minHeight:172,opacity:0},
+  pokemonCard:{width:'31.9%',height:178,backgroundColor:'#0e131b',borderRadius:16,borderWidth:1,borderColor:'#283343',padding:7,position:'relative'},pokemonCardMissing:{opacity:0.46,borderColor:'#2b3346'},pokemonCardGhost:{width:'31.9%',minHeight:172,opacity:0},
   dexNumber:{color:'#b6bdcb',fontSize:12},
   sprite:{width:'100%',height:100,marginTop:2},spriteMissing:{opacity:0.55},
   pokemonName:{color:'#f5f7fa',fontSize:12,fontWeight:'800',textAlign:'center',marginTop:2},pokemonNameMissing:{color:'#8b93a1'},
-  owned:{position:'absolute',right:6,top:6,width:22,height:22,borderRadius:11,backgroundColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
+  owned:{position:'absolute',right:6,top:6,width:24,height:24,borderRadius:12,backgroundColor:'#b8ff5a',alignItems:'center',justifyContent:'center'},
   ownedText:{color:'#10130c',fontWeight:'900'},
   loading:{flex:1,alignItems:'center',justifyContent:'center',gap:10,padding:30},
   muted:{color:'#9aa3af',fontSize:12},
@@ -214,8 +214,8 @@ const styles=StyleSheet.create({
   heroSprite:{width:80,height:80},
   heroName:{color:'#f5f7fa',fontSize:22,fontWeight:'900'},
   grid:{paddingHorizontal:18,paddingBottom:150},
-  card:{width:'31.9%',backgroundColor:'#10152a',borderRadius:12,borderWidth:1,borderColor:'#303b60',padding:7,minHeight:185},cardMissing:{opacity:0.48,borderColor:'#2b3346'},
-  cardImage:{width:'100%',height:128,backgroundColor:'#080b15',borderRadius:7},cardImageMissing:{opacity:0.55},cardOwned:{position:'absolute',left:10,top:10,backgroundColor:'#b8ff5a',borderRadius:7,paddingHorizontal:5,paddingVertical:3,zIndex:2},cardOwnedText:{color:'#10130c',fontSize:7,fontWeight:'900'},
+  card:{width:'31.9%',backgroundColor:'#0e131b',borderRadius:13,borderWidth:1,borderColor:'#283343',padding:7,minHeight:190},cardMissing:{opacity:0.48,borderColor:'#2b3346'},
+  cardImage:{width:'100%',height:132,backgroundColor:'#080b10',borderRadius:8},cardImageMissing:{opacity:0.55},cardOwned:{position:'absolute',left:10,top:10,backgroundColor:'#b8ff5a',borderRadius:7,paddingHorizontal:5,paddingVertical:3,zIndex:2},cardOwnedText:{color:'#10130c',fontSize:7,fontWeight:'900'},
   cardName:{color:'#f5f7fa',fontSize:10,fontWeight:'900',marginTop:6},cardNameMissing:{color:'#8b93a1'},
   cardMeta:{color:'#b8c0cf',fontSize:9,marginTop:2},
   cardSet:{color:'#70798a',fontSize:8,marginTop:2}
