@@ -106,7 +106,14 @@ export function ScannerScreen({onExit,onCaptured,game='pokemon'}:Props){
 function ReviewScreen({uri,quad,setQuad,processing,error,onBack,onConfirm}:{uri:string;quad:Quad;setQuad:React.Dispatch<React.SetStateAction<Quad>>;processing:boolean;error:string;onBack:()=>void;onConfirm:()=>void}){
  const size=320,h=size*88/63;
  const keys=['topLeft','topRight','bottomRight','bottomLeft'] as const;
- const responders=useMemo(()=>Object.fromEntries(keys.map(key=>[key,PanResponder.create({onStartShouldSetPanResponder:()=>true,onMoveShouldSetPanResponder:()=>true,onPanResponderMove:(_,g)=>setQuad(q=>({...q,[key]:{x:Math.max(.005,Math.min(.995,q[key].x+g.dx/size)),y:Math.max(.005,Math.min(.995,q[key].y+g.dy/h))}})})]))),[size,h,setQuad]);
+ const responders=useMemo(()=>{
+  const create=(key:typeof keys[number])=>PanResponder.create({
+   onStartShouldSetPanResponder:()=>true,
+   onMoveShouldSetPanResponder:()=>true,
+   onPanResponderMove:(_,g)=>setQuad(q=>({...q,[key]:{x:Math.max(.005,Math.min(.995,q[key].x+g.dx/size)),y:Math.max(.005,Math.min(.995,q[key].y+g.dy/h))}}))
+  });
+  return {topLeft:create('topLeft'),topRight:create('topRight'),bottomRight:create('bottomRight'),bottomLeft:create('bottomLeft')};
+ },[size,h,setQuad]);
  return <View style={styles.root}>
   <View style={styles.reviewHeader}><TouchableOpacity style={styles.secondary} onPress={onBack}><Text style={styles.secondaryText}>INDIETRO</Text></TouchableOpacity><View style={styles.headerTitle}><Text style={styles.kicker}>CARDGRADE</Text><Text style={styles.mode}>REGOLA CARTA</Text></View><TouchableOpacity style={styles.confirmTop} onPress={onConfirm} disabled={processing}><Text style={styles.confirmTopText}>CONFERMA</Text></TouchableOpacity></View>
   <View style={[styles.reviewFrame,{width:size,height:h}]}>
