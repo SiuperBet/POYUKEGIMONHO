@@ -59,7 +59,21 @@ export async function detectCardGeometry(uri:string):Promise<GeometryResult|null
     if([p1,p2,p3,p4].some(p=>p.x<-w*.2||p.x>w*1.2||p.y<-h*.2||p.y>h*1.2))continue;
     const q=order([p1,p2,p3,p4]);if(!q)continue;
     const width=(dist(q.topLeft,q.topRight)+dist(q.bottomLeft,q.bottomRight))/2,height=(dist(q.topLeft,q.bottomLeft)+dist(q.topRight,q.bottomRight))/2;if(width<28||height<40)continue;
-    const ratio=width/height,ratioScore=clamp(1-Math.abs(ratio-63/88)/(63/88*.45)),area=(Math.abs(cross(q.topLeft,q.topRight,q.bottomRight))+Math.abs(cross(q.topLeft,q.bottomRight,q.bottomLeft)))/(w*h),areaScore=clamp(area/.65),lineScore=clamp((top.score+bottom.score+left.score+right.score)/150),score=ratioScore*.55+areaScore*.2+lineScore*.25;
+    // Reject quadrilaterals that are geometrically plausible but do not look
+    // like the outer card: opposite sides must remain approximately parallel
+    // and all four corners should stay safely inside the preview.
+    const topLen=dist(q.topLeft,q.topRight),bottomLen=dist(q.bottomLeft,q.bottomRight);
+    const leftLen=dist(q.topLeft,q.bottomLeft),rightLen=dist(q.topRight,q.bottomRight);
+    const angle=(a:Point,b:Point)=>Math.atan2(b.y-a.y,b.x-a.x);
+    const parallelGap=(a:number,b:number)=>{const d=Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));return Math.min(d,Math.PI-d);};
+    const horizontalParallel=parallelGap(angle(q.topLeft,q.topRight),angle(q.bottomLeft,q.bottomRight));
+    const verticalParallel=parallelGap(angle(q.topLeft,q.bottomLeft),angle(q.topRight,q.bottomRight));
+    if(horizontalParallel>0.28||verticalParallel>0.28)continue;
+    if(Math.min(topLen,bottomLen)/Math.max(topLen,bottomLen)<.62)continue;
+    if(Math.min(leftLen,rightLen)/Math.max(leftLen,rightLen)<.62)continue;
+    const margin=Math.min(q.topLeft.x,q.topRight.x,q.bottomRight.x,q.bottomLeft.x,w-q.topLeft.x,w-q.topRight.x,w-q.bottomRight.x,w-q.bottomLeft.x);
+    const marginScore=clamp(1-Math.max(0,margin<3?3-margin:0)/3);
+    const ratio=width/height,ratioScore=clamp(1-Math.abs(ratio-63/88)/(63/88*.45)),area=(Math.abs(cross(q.topLeft,q.topRight,q.bottomRight))+Math.abs(cross(q.topLeft,q.bottomRight,q.bottomLeft)))/(w*h),areaScore=clamp(area/.65),parallelScore=clamp(1-(horizontalParallel+verticalParallel)/.56),lineScore=clamp((top.score+bottom.score+left.score+right.score)/150),score=ratioScore*.48+areaScore*.17+parallelScore*.15+lineScore*.20-marginScore*.04;
     if(!best||score>best.score)best={quad:q,score};
   }
   if(!best)return null;
