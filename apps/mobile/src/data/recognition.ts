@@ -313,6 +313,7 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
     ...buildQueries(text),
     ...text.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.length>=3&&x.length<=80)
   ])].slice(0,24);
+  // Candidate search is intentionally bounded and signature-stable for the mobile scanner. [build]
   let candidates=await candidateSearch(game,queries,numbers.locals,detected);
   let ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best,numbers.codes)})).sort((a,b)=>b.score-a.score);
 
