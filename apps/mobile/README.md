@@ -32,3 +32,6 @@ On Android, CARDGRADE uses the Google ML Kit Document Scanner as the primary acq
 
 
 Build validation: native Android document scanner + manual four-corner review + AUTO ON flow.
+
+
+Android APK requested after full-resolution scanner source update.
