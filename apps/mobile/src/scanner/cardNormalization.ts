@@ -5,7 +5,7 @@ import type {CardQuad} from './cardGeometry';
 import {assessCardQuality,type CardQuality} from './cardQuality';
 
 export type NormalizedCard={
-  uri:string;width:number;height:number;sourceWidth:number;sourceHeight:number;quad:CardQuad;
+  uri:string;sourceUri:string;width:number;height:number;sourceWidth:number;sourceHeight:number;quad:CardQuad;
   quality:CardQuality;
 };
 
@@ -40,5 +40,5 @@ export async function normalizeCardImage(uri:string,quad:CardQuad):Promise<Norma
   const output=(FileSystem.cacheDirectory||FileSystem.documentDirectory||'')+'cardgrade-normalized-'+Date.now()+'.jpg';
   await FileSystem.writeAsStringAsync(output,bytesToB64(encoded),{encoding:FileSystem.EncodingType.Base64});
   const quality=assessCardQuality(decodeJpegBase64(bytesToB64(encoded)));
-  return {uri:output,width:TARGET_W,height:TARGET_H,sourceWidth:raw.width,sourceHeight:raw.height,quad,quality};
+  return {uri:output,sourceUri:uri,width:TARGET_W,height:TARGET_H,sourceWidth:raw.width,sourceHeight:raw.height,quad,quality};
 }
