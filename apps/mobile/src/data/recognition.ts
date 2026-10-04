@@ -297,7 +297,9 @@ async function candidateSearch(game:Game,queries:string[],numberLocals:string[],
   return [...localCards,...remoteBatches.flat()].filter(card=>{
     if(seen.has(card.id))return false;
     seen.add(card.id);
-    return !detected||game!=='pokemon'||!card.language||card.language===detected||card.language==='en'||card.language==='it';
+    if(game!=='pokemon'||!card.language)return true;
+    if(detected)return card.language===detected||card.language==='en'||card.language==='it';
+    return true;
   }).slice(0,500);
 }
 
