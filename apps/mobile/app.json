@@ -24,9 +24,10 @@
     },
     "plugins": [
       [
-        "react-native-document-scanner-plugin",
+        "expo-camera",
         {
-          "cameraPermission": "Consenti alla scansione delle carte."
+          "cameraPermission": "Consenti alla fotocamera per scansionare le carte.",
+          "recordAudioAndroid": false
         }
       ]
     ],
