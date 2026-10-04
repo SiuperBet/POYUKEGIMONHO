@@ -179,6 +179,41 @@ async function makeOcrCrops(uri:string){
   }catch{return []}
 }
 
+async function collectFixedZoneOcr(uri:string,game:Game){
+  try{
+    const size=await new Promise<{width:number;height:number}|null>(resolve=>Image.getSize(uri,(width,height)=>resolve({width,height}),()=>resolve(null)));
+    if(!size)return {text:'',nameText:'',numberText:''};
+    const {width,height}=size;
+    // The normalized card is always 63:88. Zones are therefore stable across
+    // phone cameras, distance and perspective. We deliberately keep overlap
+    // around the boundaries so small printing/layout differences are tolerated.
+    const defs=game==='pokemon'
+      ? [
+          {key:'name',originX:Math.round(width*.04),originY:Math.round(height*.025),width:Math.round(width*.92),height:Math.round(height*.19)},
+          {key:'number',originX:Math.round(width*.02),originY:Math.round(height*.78),width:Math.round(width*.96),height:Math.round(height*.20)},
+          {key:'center',originX:Math.round(width*.06),originY:Math.round(height*.16),width:Math.round(width*.88),height:Math.round(height*.22)}
+        ]
+      : [
+          {key:'name',originX:Math.round(width*.04),originY:Math.round(height*.015),width:Math.round(width*.92),height:Math.round(height*.17)},
+          {key:'number',originX:Math.round(width*.03),originY:Math.round(height*.78),width:Math.round(width*.94),height:Math.round(height*.20)},
+          {key:'center',originX:Math.round(width*.06),originY:Math.round(height*.12),width:Math.round(width*.88),height:Math.round(height*.22)}
+        ];
+    const results:Record<string,string>={};
+    for(const d of defs){
+      const crop=await ImageManipulator.manipulateAsync(uri,[{crop:{
+        originX:d.originX,originY:d.originY,
+        width:Math.min(d.width,width-d.originX),height:Math.min(d.height,height-d.originY)
+      }}],{compress:1,format:ImageManipulator.SaveFormat.JPEG});
+      const scripts=game==='pokemon'
+        ? [TextRecognitionScript.LATIN,TextRecognitionScript.JAPANESE,TextRecognitionScript.CHINESE,TextRecognitionScript.KOREAN]
+        : [TextRecognitionScript.LATIN];
+      const texts=await Promise.all(scripts.map(script=>ocrImage(crop.uri,script)));
+      results[d.key]=[...new Set(texts.map(x=>x.trim()).filter(Boolean))].join('\\n');
+    }
+    return {text:[results.name,results.number,results.center].filter(Boolean).join('\\n'),nameText:results.name||'',numberText:results.number||''};
+  }catch{return {text:'',nameText:'',numberText:''}}
+}
+
 async function collectOcr(uri:string,game:Game){
   const first=await ocrImage(uri,TextRecognitionScript.LATIN);
   const chunks=[first];
