@@ -88,7 +88,7 @@ const styles=StyleSheet.create({
   frame:{position:'absolute',left:'9%',right:'9%',top:'17%',bottom:'22%'},
   edge:{position:'absolute',backgroundColor:'#d7ff52',borderRadius:3},
   top:{left:0,right:0,top:0,height:3},right:{right:0,top:0,bottom:0,width:3},bottom:{left:0,right:0,bottom:0,height:3},left:{left:0,top:0,bottom:0,width:3},
-  corner:{position:'absolute,width':undefined as any,backgroundColor:'#fff'},
+  corner:{position:'absolute',backgroundColor:'#fff'},
   tl:{left:0,top:0,width:26,height:4},tr:{right:0,top:0,width:26,height:4},br:{right:0,bottom:0,width:26,height:4},bl:{left:0,bottom:0,width:26,height:4},
   topBar:{position:'absolute',top:0,left:0,right:0,paddingTop:52,paddingHorizontal:20,flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},
   kicker:{color:'#d7ff52',fontSize:10,fontWeight:'900',letterSpacing:1.2},status:{color:'#fff',fontSize:17,fontWeight:'800',marginTop:4},
