@@ -24,13 +24,15 @@ const LANGUAGE_LABEL:Record<string,string>={
 };
 
 function extractNumbers(text:string){
-  const matches=[...(text.matchAll(/\b([A-Za-z]*\d{1,4})\s*\/\s*(\d{1,4})\b/g))].map(m=>({
+  const normalized=text.replace(/[‐‑‒–—]/g,'-');
+  const codes=[...(normalized.matchAll(/\b[A-Za-z]{2,8}-[A-Za-z0-9]{2,12}\d{1,4}\b/g))].map(m=>m[0].toUpperCase());
+  const matches=[...(normalized.matchAll(/\b([A-Za-z]*\d{1,4})\s*\/\s*(\d{1,4})\b/g))].map(m=>({
     full:String(m[0]).replace(/\s+/g,''),
     local:String(m[1]).replace(/^0+/,'')||'0',
     total:String(m[2])
   }));
-  const localOnly=[...(text.matchAll(/\b(?:#\s*)?(\d{1,4})\b/g))].map(m=>String(m[1]).replace(/^0+/,'')||'0');
-  return {best:matches[0]?.full,locals:[...new Set([...matches.map(x=>x.local),...localOnly])].slice(0,12)};
+  const localOnly=[...(normalized.matchAll(/\b(?:#\s*)?(\d{1,4})\b/g))].map(m=>String(m[1]).replace(/^0+/,'')||'0');
+  return {best:codes[0]||matches[0]?.full,locals:[...new Set([...codes,...matches.map(x=>x.local),...localOnly])].slice(0,16)};
 }
 
 function detectLanguageCode(text:string):PokemonLanguage|undefined{
