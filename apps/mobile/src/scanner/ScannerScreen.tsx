@@ -12,7 +12,6 @@ import type {RecognitionResult} from '../data/recognition';
 import type {VisualAnalysis} from '../data/visualGrading';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImagePicker from 'expo-image-picker';
 type Props={resumeGraded?:GradedItem;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
 export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis,onProfessionalAnalysis,onCardSelected}:Props){
@@ -31,9 +30,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
   const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
   const [professionalRunning,setProfessionalRunning]=useState(false);
   const [editorOpen,setEditorOpen]=useState(false);
-  const [cameraOpen,setCameraOpen]=useState(false);
-  const pendingCapture=useRef<((result:{scannedImages:string[]})=>void)|null>(null);
-
+  
   const scanDocument=async(_options:any={})=>{
     try{
       const permission=await ImagePicker.requestCameraPermissionsAsync();
@@ -41,17 +38,13 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
         setError('Permesso fotocamera non disponibile. Abilitalo nelle impostazioni e riprova.');
         return {scannedImages:[]};
       }
-      setCameraOpen(true);
       const result=await ImagePicker.launchCameraAsync({
-        mediaTypes:['images'],
         quality:1,
         allowsEditing:false
       });
-      setCameraOpen(false);
       const uri=result.canceled?undefined:result.assets?.[0]?.uri;
       return {scannedImages:uri?[uri]:[]};
     }catch(errorValue){
-      setCameraOpen(false);
       setError('La fotocamera non è disponibile. Puoi importare una foto dalla galleria.');
       return {scannedImages:[]};
     }
@@ -219,28 +212,15 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
       }}
     />}
     <View style={styles.stage}>
-      {cameraOpen?
-        <View style={styles.cameraShell}>
-          <CameraView ref={cameraRef} style={styles.cameraView} facing="back" mode="picture" onCameraReady={()=>setCameraReady(true)} onMountError={()=>{setError('Fotocamera integrata non disponibile. Passo alla fotocamera di sistema…');void captureWithSystemCamera();}} />
-          <View pointerEvents="none" style={styles.cameraGuide}>
-            <View style={styles.cameraGuideTop}/><View style={styles.cameraGuideRight}/><View style={styles.cameraGuideBottom}/><View style={styles.cameraGuideLeft}/>
-            <Text style={styles.cameraGuideText}>{cameraReady?'INQUADRA LA CARTA • 4 LATI':'AVVIO FOTOCAMERA…'}</Text>
-          </View>
-          <View style={styles.cameraControls}>
-            <TouchableOpacity style={styles.cameraCancel} onPress={cancelCameraCapture}><Text style={styles.cameraCancelText}>ANNULLA</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.cameraShutter,!cameraReady&&{opacity:.45}]} onPress={()=>void captureCameraPhoto()} disabled={!cameraReady}><View style={styles.cameraShutterInner}/></TouchableOpacity>
-            <View style={styles.cameraControlSpacer}/>
-          </View>
-        </View>:
-      lastPhoto?
+      {lastPhoto?
         <Image source={{uri:lastPhoto}} style={styles.preview} resizeMode="contain"/>:
         <View style={styles.placeholder}>
           <View style={styles.cardOutline}>
             <View style={[styles.corner,styles.tl]}/><View style={[styles.corner,styles.tr]}/><View style={[styles.corner,styles.br]}/><View style={[styles.corner,styles.bl]}/>
             <Text style={styles.cardIcon}>▣</Text>
           </View>
-          <Text style={styles.placeholderTitle}>{scannerOpen?'Rilevamento automatico…':'Scanner pronto'}</Text>
-          <Text style={styles.placeholderCopy}>Il nuovo scanner usa la fotocamera in tempo reale: guida sui 4 lati, acquisizione stabile e controllo locale del bordo della carta e della cornice stampata.</Text>
+          <Text style={styles.placeholderTitle}>{scannerOpen?'Apertura fotocamera…':'Scanner pronto'}</Text>
+          <Text style={styles.placeholderCopy}>La fotocamera di sistema acquisisce la foto; poi controlliamo automaticamente bordo fisico, cornice stampata, centratura e riconoscimento.</Text>
           {scannerOpen&&<ActivityIndicator size="small"/>}
         </View>
       }
