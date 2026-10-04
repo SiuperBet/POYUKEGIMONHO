@@ -250,8 +250,10 @@ async function candidateSearch(game:Game,queries:string[],numberLocals:string[],
 }
 
 export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise<RecognitionResult>{
-  const text=await collectOcr(uri,game);
-  const numbers=extractNumbers(text);
+  const fixed=await collectFixedZoneOcr(uri,game);
+  const broad=await collectOcr(uri,game);
+  const text=[fixed.text,broad].filter(Boolean).join('\\n');
+  const numbers=extractNumbers([fixed.numberText,text].filter(Boolean).join('\\n'));
   const detected=game==='pokemon'?detectLanguageCode(text):undefined;
   const queries=[...new Set([
     ...buildQueries(text),
