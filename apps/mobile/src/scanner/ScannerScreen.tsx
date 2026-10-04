@@ -11,7 +11,7 @@ import {CardEdgeEditor} from './CardEdgeEditor';
 import type {RecognitionResult} from '../data/recognition';
 import type {VisualAnalysis} from '../data/visualGrading';
 import * as Haptics from 'expo-haptics';
-const scanDocument=async(options:any={})=>{const {default:DocumentScanner}=await import('react-native-document-scanner-plugin');return DocumentScanner.scanDocument(options)};
+import {CameraView,useCameraPermissions} from 'expo-camera';
 
 type Props={resumeGraded?:GradedItem;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
@@ -31,6 +31,10 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
   const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
   const [professionalRunning,setProfessionalRunning]=useState(false);
   const [editorOpen,setEditorOpen]=useState(false);
+  const [cameraOpen,setCameraOpen]=useState(false);
+  const cameraRef=useRef<CameraView|null>(null);
+  const pendingCapture=useRef<((result:{scannedImages:string[]})=>void)|null>(null);
+  const [cameraPermission,requestCameraPermission]=useCameraPermissions();
   const launched=useRef(false);
 
   useEffect(()=>{
@@ -58,6 +62,36 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
       : 'Grading ripreso: puoi aggiungere retro, angoli, bordi e dettagli della superficie.');
   },[resumeGraded?.id]);
 
+
+  const scanDocument=async(_options:any={})=>{
+    if(!cameraPermission?.granted){
+      const permission=await requestCameraPermission();
+      if(!permission.granted)return {scannedImages:[]};
+    }
+    setCameraOpen(true);
+    return await new Promise<{scannedImages:string[]}>(resolve=>{pendingCapture.current=resolve;});
+  };
+
+  const captureCameraPhoto=async()=>{
+    if(!cameraRef.current||!cameraOpen)return;
+    try{
+      const photo=await cameraRef.current.takePictureAsync({quality:1});
+      const uri=photo?.uri;
+      if(!uri)return;
+      setCameraOpen(false);
+      pendingCapture.current?.({scannedImages:[uri]});
+      pendingCapture.current=null;
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>{});
+    }catch(errorValue){
+      setError('Impossibile acquisire la foto. Puoi riprovare.');
+    }
+  };
+
+  const cancelCameraCapture=()=>{
+    setCameraOpen(false);
+    pendingCapture.current?.({scannedImages:[]});
+    pendingCapture.current=null;
+  };
 
   const scanBack=async()=>{if(!gradedId||scanningBack)return;setScanningBack(true);setError(null);setMessage('Inquadra il retro della carta…');try{const result=await scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned){setMessage('Retro non acquisito. Il retro resta opzionale.');return}const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;setBackPhoto(uri);await onBackCaptured?.(gradedId,uri);setMessage('Analisi fronte + retro in corso…');const {analyzeCardCondition}=await import('../data/visualGrading'); const analysis=await analyzeCardCondition(lastPhoto||uri,uri).catch(()=>null);if(analysis){setVisualAnalysis(analysis);if(!conditionTouched){setSelectedCondition(analysis.condition);await onConditionSelected?.(gradedId,analysis.condition)}await onVisualAnalysis?.(gradedId,analysis)}setMessage('✓ Retro acquisito • valutazione fronte + retro aggiornata');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back/i.test(String(errorValue??''));setMessage(cancelled?'Acquisizione retro annullata.':'Impossibile acquisire il retro. Puoi continuare senza retro.');}finally{setScanningBack(false)}};
 
@@ -162,7 +196,20 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
       }}
     />}
     <View style={styles.stage}>
-      {lastPhoto?
+      {cameraOpen?
+        <View style={styles.cameraShell}>
+          <CameraView ref={cameraRef} style={styles.cameraView} facing="back" mode="picture" autofocus="on" ratio="4:3" />
+          <View pointerEvents="none" style={styles.cameraGuide}>
+            <View style={styles.cameraGuideTop}/><View style={styles.cameraGuideRight}/><View style={styles.cameraGuideBottom}/><View style={styles.cameraGuideLeft}/>
+            <Text style={styles.cameraGuideText}>INQUADRA LA CARTA • 4 LATI</Text>
+          </View>
+          <View style={styles.cameraControls}>
+            <TouchableOpacity style={styles.cameraCancel} onPress={cancelCameraCapture}><Text style={styles.cameraCancelText}>ANNULLA</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.cameraShutter} onPress={()=>void captureCameraPhoto()}><View style={styles.cameraShutterInner}/></TouchableOpacity>
+            <View style={styles.cameraControlSpacer}/>
+          </View>
+        </View>:
+      lastPhoto?
         <Image source={{uri:lastPhoto}} style={styles.preview} resizeMode="contain"/>:
         <View style={styles.placeholder}>
           <View style={styles.cardOutline}>
@@ -233,6 +280,21 @@ const styles=StyleSheet.create({
   nativeBadgeText:{color:'#10130c',fontSize:10,fontWeight:'900'},
   stage:{flex:1,minHeight:420,borderRadius:24,overflow:'hidden',borderWidth:1,borderColor:'#2a3038',backgroundColor:'#0d1014',alignItems:'center',justifyContent:'center',padding:18},
   preview:{width:'100%',height:'100%',borderRadius:18,backgroundColor:'#080a0d'},
+  cameraShell:{width:'100%',height:'100%',minHeight:420,borderRadius:18,overflow:'hidden',backgroundColor:'#000',position:'relative'},
+  cameraView:{flex:1},
+  cameraGuide:{position:'absolute',left:20,right:20,top:42,bottom:92,borderRadius:18,alignItems:'center',justifyContent:'center'},
+  cameraGuideTop:{position:'absolute',left:0,right:0,top:0,height:3,backgroundColor:'#b8ff5a',borderRadius:2},
+  cameraGuideRight:{position:'absolute',right:0,top:0,bottom:0,width:3,backgroundColor:'#b8ff5a',borderRadius:2},
+  cameraGuideBottom:{position:'absolute',left:0,right:0,bottom:0,height:3,backgroundColor:'#b8ff5a',borderRadius:2},
+  cameraGuideLeft:{position:'absolute',left:0,top:0,bottom:0,width:3,backgroundColor:'#b8ff5a',borderRadius:2},
+  cameraGuideText:{position:'absolute',top:-25,color:'#b8ff5a',fontSize:10,fontWeight:'900',letterSpacing:1},
+  cameraControls:{position:'absolute',left:0,right:0,bottom:16,height:68,flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:18},
+  cameraCancel:{backgroundColor:'rgba(8,10,13,.82)',paddingHorizontal:13,paddingVertical:10,borderRadius:11,borderWidth:1,borderColor:'#606975'},
+  cameraCancelText:{color:'#fff',fontSize:10,fontWeight:'900'},
+  cameraShutter:{width:62,height:62,borderRadius:31,backgroundColor:'#fff',alignItems:'center',justifyContent:'center',borderWidth:4,borderColor:'rgba(184,255,90,.9)'},
+  cameraShutterInner:{width:48,height:48,borderRadius:24,backgroundColor:'#b8ff5a'},
+  cameraControlSpacer:{width:72},
+
   placeholder:{alignItems:'center',justifyContent:'center',maxWidth:310},
   cardOutline:{width:170,height:238,borderWidth:2,borderColor:'#b8ff5a',borderRadius:12,alignItems:'center',justifyContent:'center',position:'relative',backgroundColor:'#151a1e',shadowColor:'#b8ff5a',shadowOpacity:.15,shadowRadius:20},
   corner:{position:'absolute',width:28,height:28,borderColor:'#b8ff5a'},tl:{left:-2,top:-2,borderLeftWidth:4,borderTopWidth:4,borderTopLeftRadius:9},tr:{right:-2,top:-2,borderRightWidth:4,borderTopWidth:4,borderTopRightRadius:9},br:{right:-2,bottom:-2,borderRightWidth:4,borderBottomWidth:4,borderBottomRightRadius:9},bl:{left:-2,bottom:-2,borderLeftWidth:4,borderBottomWidth:4,borderBottomLeftRadius:9},
