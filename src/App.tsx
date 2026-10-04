@@ -31,7 +31,7 @@ export default function App(){
  const [page,setPage]=useState<(typeof nav)[number][0]>('home');
  const [game,setGame]=useState<Game>('pokemon');
  const [collection,setCollection]=useState<SavedCard[]>(loadCollection);
- const [gradingScans,setGradingScans]=useState<SavedGradeScan[]>(loadGradingScans);
+ const [gradingScans]=useState<SavedGradeScan[]>(loadGradingScans);
  const [sets,setSets]=useState<any[]>([]),[setSearch,setSetSearch]=useState(''),[setSort,setSetSort]=useState<SortMode>('nameAsc'),[selectedSet,setSelectedSet]=useState<any|null>(null),[setCards,setSetCards]=useState<CatalogCard[]>([]),[setCardSearch,setSetCardSearch]=useState(''),[setCardSort,setSetCardSort]=useState<SortMode>('numberAsc'),[loadingSet,setLoadingSet]=useState(false);
  const [collectionSearch,setCollectionSearch]=useState(''),[collectionSort,setCollectionSort]=useState<SortMode>('nameAsc');
  const [marketSearch,setMarketSearch]=useState(''),[marketSort,setMarketSort]=useState<SortMode>('priceDesc');
