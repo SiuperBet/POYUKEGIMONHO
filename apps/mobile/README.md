@@ -21,3 +21,7 @@ Avvio: `npm install`, `npx expo prebuild`, poi `npm run android` oppure `npm run
 La pipeline Android produce una release APK tramite `expo prebuild` + Gradle `assembleRelease` e la pubblica come artifact GitHub Actions. Il workflow esegue prima il typecheck mobile e usa Java 17/Node 20.
 
 Il build viene avviato dai commit contrassegnati con `[build]`.
+
+
+### Scanner runtime policy
+The Android scanner does not take background still photos for preview detection. Card geometry is evaluated from the user-triggered capture; automatic capture remains disabled until a true live-frame processor is available.
