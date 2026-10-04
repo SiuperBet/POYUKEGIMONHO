@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Dimensions,StyleSheet,Text,TouchableOpacity,View} from 'react-native';
 import {Camera,useCameraDevice,useCameraPermission,useFrameOutput,usePhotoOutput} from 'react-native-vision-camera';
 import {scheduleOnRN} from 'react-native-worklets';
@@ -145,7 +145,7 @@ export function CardLiveCamera({onCaptured,onCancel}:Props){
     if(!mounted.current)return;
     setDetection(prev=>{
       if(!next)return prev&&prev.valid?{...prev,valid:false,confidence:Math.max(0,prev.confidence*.86)}:null;
-      const alpha=next.valid?.65:.45;
+      const alpha=next.valid ? .65 : .45;
       if(!prev)return next;
       const points=next.points.map((p,i)=>({x:prev.points[i].x*(1-alpha)+p.x*alpha,y:prev.points[i].y*(1-alpha)+p.y*alpha})) as [Point,Point,Point,Point];
       return {...next,points,confidence:prev.confidence*(1-alpha)+next.confidence*alpha};
