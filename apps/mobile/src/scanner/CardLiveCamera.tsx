@@ -8,6 +8,7 @@ type Props={
   onCancel:()=>void;
 };
 
+// Android build verification trigger
 export function CardLiveCamera({onCaptured,onCancel}:Props){
   const device=useCameraDevice('back',{physicalDevices:['wide-angle']});
   const {hasPermission,requestPermission}=useCameraPermission();
