@@ -2,16 +2,22 @@
 
 Companion app nativa dello stesso prodotto web.
 
-- Mobile: scanner, camera, torcia, zoom e acquisizione.
+- Mobile: scanner, camera, torcia, acquisizione automatica/manuale e riconoscimento.
 - Web: catalogo, collection, market, storico e revisione.
 - Shared: Card / Printing / Variant e pipeline di recognition, condition e pricing.
 
-Stack: React Native + Expo Development Build + react-native-vision-camera.
+Stack: React Native + Expo SDK 54 + `expo-camera`.
 
-Per la camera nativa è previsto un development build, non una configurazione Expo Go-only.
+## Scanner
+
+Lo scanner mobile usa `CameraView` con rilevamento geometrico dei 4 lati e 4 angoli, stabilizzazione, auto-capture opzionale, correzione prospettica a 4 punti, quality gate e OCR a zone fisse. Il riconoscimento usa catalogo locale quando disponibile e fallback mirato al catalogo remoto, con supporto Pokémon multilingua e conferma delle corrispondenze ambigue.
+
+Per le API camera native viene usato un development/release build Android; non è una configurazione Expo Go-only.
 
 Avvio: `npm install`, `npx expo prebuild`, poi `npm run android` oppure `npm run ios`.
 
 ## APK verification
 
-La pipeline Android produce una release APK tramite `expo prebuild` + Gradle `assembleRelease` e la pubblica come artifact GitHub Actions. Lo scanner mobile usa la fotocamera/scanner nativo con rilevamento automatico dei bordi, crop e correzione prospettica, seguito da OCR/riconoscimento e salvataggio nella collezione.
+La pipeline Android produce una release APK tramite `expo prebuild` + Gradle `assembleRelease` e la pubblica come artifact GitHub Actions. Il workflow esegue prima il typecheck mobile e usa Java 17/Node 20.
+
+Il build viene avviato dai commit contrassegnati con `[build]`.
