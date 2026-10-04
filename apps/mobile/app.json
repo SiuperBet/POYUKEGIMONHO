@@ -9,16 +9,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.siuperbet.poyukegimonho",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Usiamo la fotocamera per scansionare le carte.",
-        "NSMotionUsageDescription": "Usiamo i sensori di orientamento per mantenere la carta allineata."
-      }
+      "infoPlist": {}
     },
     "android": {
       "package": "com.siuperbet.poyukegimonho",
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.VIBRATE",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ]
     },
