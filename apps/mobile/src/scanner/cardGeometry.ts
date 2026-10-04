@@ -73,7 +73,7 @@ export async function detectCardGeometry(uri:string):Promise<GeometryResult|null
     if(Math.min(leftLen,rightLen)/Math.max(leftLen,rightLen)<.62)continue;
     const margin=Math.min(q.topLeft.x,q.topRight.x,q.bottomRight.x,q.bottomLeft.x,w-q.topLeft.x,w-q.topRight.x,w-q.bottomRight.x,w-q.bottomLeft.x);
     const marginScore=clamp(1-Math.max(0,margin<3?3-margin:0)/3);
-    const ratio=width/height,ratioScore=clamp(1-Math.abs(ratio-63/88)/(63/88*.45)),area=(Math.abs(cross(q.topLeft,q.topRight,q.bottomRight))+Math.abs(cross(q.topLeft,q.bottomRight,q.bottomLeft)))/(w*h),areaScore=clamp(area/.65),parallelScore=clamp(1-(horizontalParallel+verticalParallel)/.56),lineScore=clamp((top.score+bottom.score+left.score+right.score)/150),score=ratioScore*.48+areaScore*.17+parallelScore*.15+lineScore*.20-marginScore*.04;
+    const ratio=width/height; // A Pokémon/Yu-Gi-Oh! card is approximately 63:88. Reject inner artwork frames and furniture edges before scoring them as cards. if(ratio<.50||ratio>.95)continue; const ratioScore=clamp(1-Math.abs(ratio-63/88)/(63/88*.32)); const area=(Math.abs(cross(q.topLeft,q.topRight,q.bottomRight))+Math.abs(cross(q.topLeft,q.bottomRight,q.bottomLeft)))/(w*h); if(area<.025)continue; const areaScore=clamp(area/.18); const parallelScore=clamp(1-(horizontalParallel+verticalParallel)/.56); const lineScore=clamp((top.score+bottom.score+left.score+right.score)/150); const score=ratioScore*.62+areaScore*.12+parallelScore*.14+lineScore*.12;
     if(!best||score>best.score)best={quad:q,score};
   }
   if(!best)return null;
