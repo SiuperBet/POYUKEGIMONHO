@@ -23,16 +23,18 @@ const LANGUAGE_LABEL:Record<string,string>={
   'pt-br':'Portoghese BR',ja:'Giapponese',ko:'Coreano','zh-cn':'Cinese semplificato','zh-tw':'Cinese tradizionale'
 };
 
+function normalizeCollectorCode(value:string){return String(value||'').replace(/[‐-‒–—]/g,'-').replace(/\s+/g,'').toUpperCase();}
+
 function extractNumbers(text:string){
   const normalized=text.replace(/[‐‑‒–—]/g,'-');
-  const codes=[...(normalized.matchAll(/\b[A-Za-z]{2,8}-[A-Za-z0-9]{2,12}\d{1,4}\b/g))].map(m=>m[0].toUpperCase());
+  const codes=[...(normalized.matchAll(/\b[A-Za-z]{2,8}-[A-Za-z0-9]{2,12}\d{1,4}\b/g))].map(m=>normalizeCollectorCode(m[0]));
   const matches=[...(normalized.matchAll(/\b([A-Za-z]*\d{1,4})\s*\/\s*(\d{1,4})\b/g))].map(m=>({
     full:String(m[0]).replace(/\s+/g,''),
     local:String(m[1]).replace(/^0+/,'')||'0',
     total:String(m[2])
   }));
   const localOnly=[...(normalized.matchAll(/\b(?:#\s*)?(\d{1,4})\b/g))].map(m=>String(m[1]).replace(/^0+/,'')||'0');
-  return {best:codes[0]||matches[0]?.full,locals:[...new Set([...codes,...matches.map(x=>x.local),...localOnly])].slice(0,16)};
+  return {best:codes[0]||matches[0]?.full,locals:[...new Set([...codes,...matches.map(x=>x.local),...localOnly])].slice(0,16),codes};
 }
 
 function detectLanguageCode(text:string):PokemonLanguage|undefined{
@@ -85,7 +87,7 @@ function buildQueries(text:string){
   return [...new Set(queries)].slice(0,12);
 }
 
-function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:PokemonLanguage,numberBest?:string){
+function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:PokemonLanguage,numberBest?:string,codes:string[]=[]){
   const source=normalize(ocr);
   const compactSource=compact(ocr);
   const name=normalize(card.name);
@@ -95,25 +97,43 @@ function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:Po
   let score=tokens.length?0.45*(hits/tokens.length):0;
   if(name&&source.includes(name))score+=0.32;
   if(compactName.length>=4&&compactSource.includes(compactName))score+=0.18;
+
   if(card.number){
     const rawNumber=String(card.number).replace(/\s/g,'').toUpperCase();
-    const ocrCodes=[...(ocr.toUpperCase().matchAll(/\b[A-Z]{2,8}-[A-Z0-9]{2,12}\d{1,4}\b/g))].map(m=>m[0]);
-    const exactCode=ocrCodes.includes(rawNumber);
-    if(exactCode)score+=0.62;
-    else if(ocrCodes.some(code=>code.includes(rawNumber)||rawNumber.includes(code)))score+=0.18;
+    const cardCode=normalizeCollectorCode(rawNumber);
+    const ocrCodes=[...codes,...(ocr.toUpperCase().match(/\b[A-Z]{2,8}-[A-Z0-9]{2,12}\d{1,4}\b/g)||[]).map(normalizeCollectorCode)];
+    const uniqueCodes=[...new Set(ocrCodes)];
+    const hasCodeSignal=uniqueCodes.length>0;
+    const exactCode=uniqueCodes.includes(cardCode);
+
+    // Collector codes are printing-level identifiers. If OCR produces one,
+    // an exact match is a dominant signal and a conflicting code is strongly
+    // penalized instead of allowing the card name to win.
+    if(exactCode)score+=0.78;
+    else if(hasCodeSignal&&/^[A-Z0-9]{2,8}-[A-Z0-9]{2,16}$/i.test(cardCode))score-=0.58;
+
     const n=rawNumber.split('/')[0].replace(/^[^0-9]*/,'').replace(/^0+/,'')||rawNumber;
     const exactLocal=locals.some(x=>{
-      const lx=String(x).split('/')[0].replace(/^[^0-9]*/,'').replace(/^0+/,'')||String(x);
-      return lx===n;
+      const value=String(x).split('/')[0].replace(/^[^0-9]*/,'').replace(/^0+/,'')||String(x);
+      return value===n;
     });
     if(exactLocal)score+=0.46;
     else if(locals.some(x=>String(x).replace(/^0+/,'')===rawNumber.replace(/^0+/,'').split('/')[0]))score+=0.22;
+
     if(numberBest){
-      const bestLocal=String(numberBest).split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||String(numberBest);
-      const cardLocal=rawNumber.split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||rawNumber;
-      if(bestLocal && cardLocal && bestLocal!==cardLocal)score-=0.34;
+      const best=String(numberBest);
+      const bestLooksLikeCode=/^[A-Z]{2,8}-[A-Z0-9]{2,16}$/i.test(best);
+      if(bestLooksLikeCode){
+        if(normalizeCollectorCode(best)===cardCode)score+=0.16;
+        else if(/^[A-Z0-9]{2,8}-[A-Z0-9]{2,16}$/i.test(cardCode))score-=0.34;
+      }else{
+        const bestLocal=best.split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||best;
+        const cardLocal=rawNumber.split('/')[0].replace(/^[A-Za-z]*/,'').replace(/^0+/,'')||rawNumber;
+        if(bestLocal&&cardLocal&&bestLocal!==cardLocal)score-=0.34;
+      }
     }
   }
+
   // Language is part of the printing identity. When OCR gives a language signal,
   // matching that language must dominate a same-number result from another locale.
   if(detected&&card.language===detected)score+=0.24;
@@ -291,7 +311,7 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   ])].slice(0,24);
   const pokemonNames:string[]=[];
   let candidates=await candidateSearch(game,queries,numbers.locals,detected,pokemonNames);
-  let ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
+  let ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best,numbers.codes)})).sort((a,b)=>b.score-a.score);
 
   // If OCR found a plausible exact collectible number, prefer candidates sharing
   // that localId. This is a strong disambiguator between near-identical printings.
