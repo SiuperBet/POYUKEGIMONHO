@@ -12,6 +12,7 @@ import type {RecognitionResult} from '../data/recognition';
 import type {VisualAnalysis} from '../data/visualGrading';
 import * as Haptics from 'expo-haptics';
 import {CameraView,useCameraPermissions} from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 
 type Props={resumeGraded?:GradedItem;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
@@ -35,7 +36,35 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
   const cameraRef=useRef<CameraView|null>(null);
   const pendingCapture=useRef<((result:{scannedImages:string[]})=>void)|null>(null);
   const [cameraPermission,requestCameraPermission]=useCameraPermissions();
+  const systemCameraFallback=useRef(false);
   const launched=useRef(false);
+
+  const captureWithSystemCamera=async()=>{
+    if(systemCameraFallback.current)return;
+    systemCameraFallback.current=true;
+    setCameraOpen(false);
+    setCameraReady(false);
+    try{
+      const permission=await ImagePicker.requestCameraPermissionsAsync();
+      if(!permission.granted){
+        pendingCapture.current?.({scannedImages:[]});
+        pendingCapture.current=null;
+        setError('Permesso fotocamera non disponibile. Abilitalo nelle impostazioni e riprova.');
+        return;
+      }
+      const result=await ImagePicker.launchCameraAsync({quality:1,allowsEditing:false});
+      const uri=result.canceled?undefined:result.assets?.[0]?.uri;
+      pendingCapture.current?.({scannedImages:uri?[uri]:[]});
+      pendingCapture.current=null;
+      if(!uri)setMessage('Acquisizione annullata.');
+    }catch(errorValue){
+      pendingCapture.current?.({scannedImages:[]});
+      pendingCapture.current=null;
+      setError('La fotocamera non è disponibile su questo dispositivo. Puoi importare una foto dalla galleria.');
+    }finally{
+      systemCameraFallback.current=false;
+    }
+  };
 
   useEffect(()=>{
     if(!resumeGraded)return;
@@ -68,6 +97,8 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
       const permission=await requestCameraPermission();
       if(!permission.granted)return {scannedImages:[]};
     }
+    systemCameraFallback.current=false;
+    setCameraReady(false);
     setCameraOpen(true);
     return await new Promise<{scannedImages:string[]}>(resolve=>{pendingCapture.current=resolve;});
   };
@@ -198,7 +229,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
     <View style={styles.stage}>
       {cameraOpen?
         <View style={styles.cameraShell}>
-          <CameraView ref={cameraRef} style={styles.cameraView} facing="back" mode="picture" autofocus="on" ratio="4:3" zoom={cameraZoom} onCameraReady={()=>setCameraReady(true)} onMountError={()=>setError('Fotocamera non disponibile. Controlla i permessi e riprova.')} />
+          <CameraView ref={cameraRef} style={styles.cameraView} facing="back" mode="picture" onCameraReady={()=>setCameraReady(true)} onMountError={()=>{setError('Fotocamera integrata non disponibile. Passo alla fotocamera di sistema…');void captureWithSystemCamera();}} />
           <View pointerEvents="none" style={styles.cameraGuide}>
             <View style={styles.cameraGuideTop}/><View style={styles.cameraGuideRight}/><View style={styles.cameraGuideBottom}/><View style={styles.cameraGuideLeft}/>
             <Text style={styles.cameraGuideText}>{cameraReady?'INQUADRA LA CARTA • 4 LATI':'AVVIO FOTOCAMERA…'}</Text>
