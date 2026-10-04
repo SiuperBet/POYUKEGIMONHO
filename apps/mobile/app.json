@@ -17,21 +17,12 @@
     "android": {
       "package": "com.siuperbet.poyukegimonho",
       "permissions": [
-        "CAMERA",
-        "VIBRATE",
-        "REQUEST_INSTALL_PACKAGES"
+        "android.permission.CAMERA",
+        "android.permission.VIBRATE",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ]
     },
     "plugins": [],
-    "newArchEnabled": false
-  },
-  "plugins": [
-    [
-      "expo-camera",
-      {
-        "cameraPermission": "Consenti alla fotocamera per scansionare le carte.",
-        "recordAudioAndroid": false
-      }
-    ]
-  ]
+    "newArchEnabled": true
+  }
 }
