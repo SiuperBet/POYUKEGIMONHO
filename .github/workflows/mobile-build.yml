@@ -35,6 +35,25 @@ jobs:
         run: npm install
       - name: Typecheck mobile
         run: npm run typecheck
+      - name: Patch Expo Camera Android crash guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("node_modules/expo-camera/android/src/main/java/expo/modules/camera/ExpoCameraView.kt")
+          source = path.read_text()
+          old = "  val cameraProvider = ProcessCameraProvider.awaitInstance(context)"
+          new = """  val cameraProvider = try {
+            ProcessCameraProvider.awaitInstance(context)
+          } catch (e: Exception) {
+            shouldCreateCamera = true
+            onMountError(CameraMountErrorEvent("Camera unavailable: ${e.message ?: e.javaClass.simpleName}"))
+            return
+          }"""
+          if old not in source:
+            raise SystemExit("Expo Camera source changed: expected awaitInstance line not found")
+          path.write_text(source.replace(old, new, 1))
+          print("Expo Camera Android crash guard applied")
+          PY
       - name: Set Android build number
         run: node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('app.json','utf8')); p.expo.android.versionCode=Number(process.env.GITHUB_RUN_NUMBER); fs.writeFileSync('app.json',JSON.stringify(p,null,2)+'\\n')"
       - name: Generate Android project
