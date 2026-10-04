@@ -21,7 +21,8 @@
     "expo-intent-launcher": "~13.0.8",
     "expo-image-manipulator": "~14.0.8",
     "jpeg-js": "^0.4.4",
-    "expo-camera": "~17.0.10"
+    "expo-camera": "~17.0.10",
+    "babel-preset-expo": "~54.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.10",
