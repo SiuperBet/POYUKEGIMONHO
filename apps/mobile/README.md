@@ -29,3 +29,6 @@ The Android scanner does not take background still photos for preview detection.
 
 ### Native Android scanner
 On Android, CARDGRADE uses the Google ML Kit Document Scanner as the primary acquisition layer. It provides a native document-scanner flow with automatic capture, edge detection, perspective correction and gallery import; the resulting JPEG is then passed to CARDGRADE recognition. The app no longer probes the camera by taking periodic background photos.
+
+
+Build validation: native Android document scanner + manual four-corner review + AUTO ON flow.
