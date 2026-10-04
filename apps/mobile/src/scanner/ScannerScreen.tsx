@@ -77,38 +77,6 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
   },[resumeGraded?.id]);
 
 
-  const scanDocument=async(_options:any={})=>{
-    if(!cameraPermission?.granted){
-      const permission=await requestCameraPermission();
-      if(!permission.granted)return {scannedImages:[]};
-    }
-    systemCameraFallback.current=false;
-    setCameraReady(false);
-    setCameraOpen(true);
-    return await new Promise<{scannedImages:string[]}>(resolve=>{pendingCapture.current=resolve;});
-  };
-
-  const captureCameraPhoto=async()=>{
-    if(!cameraRef.current||!cameraOpen)return;
-    try{
-      const photo=await cameraRef.current.takePictureAsync({quality:1});
-      const uri=photo?.uri;
-      if(!uri)return;
-      setCameraOpen(false);
-      pendingCapture.current?.({scannedImages:[uri]});
-      pendingCapture.current=null;
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>{});
-    }catch(errorValue){
-      setError('Impossibile acquisire la foto. Puoi riprovare.');
-    }
-  };
-
-  const cancelCameraCapture=()=>{
-    setCameraOpen(false);
-    pendingCapture.current?.({scannedImages:[]});
-    pendingCapture.current=null;
-  };
-
   const scanBack=async()=>{if(!gradedId||scanningBack)return;setScanningBack(true);setError(null);setMessage('Inquadra il retro della carta…');try{const result=await scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned){setMessage('Retro non acquisito. Il retro resta opzionale.');return}const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;setBackPhoto(uri);await onBackCaptured?.(gradedId,uri);setMessage('Analisi fronte + retro in corso…');const {analyzeCardCondition}=await import('../data/visualGrading'); const analysis=await analyzeCardCondition(lastPhoto||uri,uri).catch(()=>null);if(analysis){setVisualAnalysis(analysis);if(!conditionTouched){setSelectedCondition(analysis.condition);await onConditionSelected?.(gradedId,analysis.condition)}await onVisualAnalysis?.(gradedId,analysis)}setMessage('✓ Retro acquisito • valutazione fronte + retro aggiornata');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back/i.test(String(errorValue??''));setMessage(cancelled?'Acquisizione retro annullata.':'Impossibile acquisire il retro. Puoi continuare senza retro.');}finally{setScanningBack(false)}};
 
   const processCapturedPhoto=async(uri:string)=>{
@@ -150,9 +118,6 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
     }finally{setScannerOpen(false);}
   };
 
-  useEffect(()=>{
-    if(!launched.current){launched.current=true;}
-  },[]);
 
   const runProfessionalInspection=async()=>{if(!lastPhoto||professionalRunning)return;setProfessionalRunning(true);setError(null);try{const existing=professionalAnalysis?.photos||[];const photos:InspectionPhoto[]=[...existing];const addPhoto=(uri:string,purpose:InspectionPhoto['purpose'],label:string)=>{if(!photos.some(p=>p.purpose===purpose))photos.push({id:purpose+'-'+Date.now()+'-'+photos.length,uri,purpose,label,createdAt:new Date().toISOString()});};if(!photos.some(p=>p.purpose==='front'))addPhoto(lastPhoto,'front','Fronte');if(backPhoto&&!photos.some(p=>p.purpose==='back'))addPhoto(backPhoto,'back','Retro');for(const step of PROFESSIONAL_INSPECTION_STEPS){if(photos.some(p=>p.purpose===step.purpose))continue;setMessage(step.title+': '+step.instruction);const result=await scanDocument({maxNumDocuments:1,croppedImageQuality:100});const scanned=result.scannedImages?.[0];if(!scanned)throw new Error('Acquisizione annullata');const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;addPhoto(uri,step.purpose,step.title)}const {analyzeProfessionalInspection}=await import('../data/visualGrading');const analysis=await analyzeProfessionalInspection(photos);setProfessionalAnalysis(analysis);if(analysis.condition&&!conditionTouched){setSelectedCondition(analysis.condition);if(gradedId)await onConditionSelected?.(gradedId,analysis.condition);}if(gradedId)await onProfessionalAnalysis?.(gradedId,analysis);setMessage('✓ Valutazione automatica: '+(analysis.condition||'Da verificare')+' · '+(analysis.overall??'—')+'/100 · '+analysis.confidence+'% confidenza');await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}catch(errorValue){const cancelled=/cancel|dismiss|back|annull/i.test(String(errorValue??''));setMessage(cancelled?'Analisi professionale interrotta.':'Analisi professionale non completata: puoi riprovare.');if(!cancelled)setError('Puoi riprovare: le foto già acquisite restano disponibili.')}finally{setProfessionalRunning(false)}};
 
