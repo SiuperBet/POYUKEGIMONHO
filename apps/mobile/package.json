@@ -21,7 +21,6 @@
     "expo-application": "~6.1.5",
     "expo-file-system": "~19.0.23",
     "expo-intent-launcher": "~13.0.8",
-    "@shopify/react-native-skia": "2.6.2",
     "expo-image-manipulator": "~14.0.8"
   },
   "devDependencies": {
