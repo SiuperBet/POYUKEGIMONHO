@@ -352,6 +352,51 @@ export async function getPokemonCardsForPokemon(pokemonName:string):Promise<Cata
   });
 }
 
+export async function searchLocalCatalogCards(game:Game,nameQuery:string='',numberQuery:string='',limit=120):Promise<CatalogCard[]>{
+  const keys=await AsyncStorage.getAllKeys();
+  const relevant=keys.filter(key=>
+    key.startsWith('catalog:pokemon:set:')||
+    key.startsWith('catalog:pokemon:masterset:')||
+    key.startsWith('catalog:pokemon:pokedex-cards:')||
+    key.startsWith('catalog:yugioh:set:')
+  );
+  if(!relevant.length)return [];
+  const values=await AsyncStorage.multiGet(relevant);
+  const name=String(nameQuery||'').trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,'');
+  const number=String(numberQuery||'').trim().toLowerCase().replace(/\\s+/g,'');
+  const seen=new Set<string>();
+  const scored:Array<{card:CatalogCard;score:number}>=[];
+
+  for(const [,raw] of values){
+    if(!raw)continue;
+    let parsed:unknown;
+    try{parsed=JSON.parse(raw)}catch{continue}
+    if(!Array.isArray(parsed))continue;
+    for(const value of parsed){
+      const card=value as CatalogCard;
+      if(!card||card.game!==game||!card.id||seen.has(card.id))continue;
+      const cardName=String(card.name||'').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,'');
+      const cardNumber=String(card.number||'').toLowerCase().replace(/\\s+/g,'');
+      let score=0;
+      if(name){
+        if(cardName===name)score+=1;
+        else if(cardName.includes(name)||name.includes(cardName))score+=.55;
+      }
+      if(number){
+        const local=cardNumber.split('/')[0];
+        const queryLocal=number.split('/')[0];
+        if(cardNumber===number||local===queryLocal)score+=1.25;
+        else if(cardNumber.includes(number)||number.includes(cardNumber))score+=.45;
+      }
+      if(!name&&!number)score=.1;
+      if(score>0){scored.push({card,score});seen.add(card.id)}
+    }
+  }
+
+  scored.sort((a,b)=>b.score-a.score);
+  return scored.slice(0,limit).map(x=>x.card);
+}
+
 export async function hydrateCardDates(game:Game,cards:CatalogCard[]):Promise<CatalogCard[]>{
   if(!cards.length)return cards;
   if(game==='yugioh'){
