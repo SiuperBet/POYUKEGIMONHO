@@ -456,11 +456,12 @@ const SEARCH_LANGUAGES:PokemonLanguage[]=['en','it','ja','zh-cn','zh-tw','fr','d
 
 async function expandPokemonSearchAcrossLanguages(cards:CatalogCard[]):Promise<CatalogCard[]>{
   if(!cards.length)return cards;
-  const canonical=cards.slice(0,24);
+  // Keep multilingual enrichment bounded: only the strongest matches need localized printings.
+  const canonical=cards.slice(0,8);
   const requests:{base:CatalogCard;language:PokemonLanguage;promise:Promise<any>}[]=[];
   for(const base of canonical){
     const rawId=String(base.sourceId||base.id).replace(/^(?:[a-z-]+)::/,'');
-    for(const language of POKEMON_LANGUAGES){
+    for(const language of SEARCH_LANGUAGES){
       if(language===base.language)continue;
       requests.push({
         base,language,
