@@ -2,7 +2,6 @@ import React,{useMemo,useRef,useState} from 'react';
 import {Image,PanResponder,Platform,StyleSheet,Text,TouchableOpacity,View} from 'react-native';
 import {CameraView,useCameraPermissions,type CameraType} from 'expo-camera';
 import {normalizeCardImage} from './cardNormalization';
-import {assessCardQuality} from './cardQuality';
 import type {Point} from './cardGeometry';
 import type {CatalogCard,Game} from '../data/catalog';
 import {recognizeCardImage,type RecognitionResult} from '../data/recognition';
