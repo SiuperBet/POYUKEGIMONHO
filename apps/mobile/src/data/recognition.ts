@@ -339,7 +339,6 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
   let top=ranked[0];
   let second=ranked[1]?.score||0;
   let confidence=top?.score||0;
-  if(pokemonNames.length&&top&&pokemonNames.some(n=>compact(top.card.name).includes(compact(n))))confidence=Math.max(confidence,.58);
   // When the scan language is not reliably detectable, prefer the Italian printing
   // for presentation/matching without overriding an explicitly detected language.
   if(!detected&&top?.card.language==='it')confidence=Math.min(1,confidence+0.06);
