@@ -2,7 +2,7 @@ import TextRecognition,{TextRecognitionScript} from '@react-native-ml-kit/text-r
 import {Image} from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {CatalogCard,Game,PokemonLanguage,searchCards,getPokemonCardsForPokemon} from './catalog';
+import {CatalogCard,Game,PokemonLanguage,searchLocalCatalogCards} from './catalog';
 
 export type RecognitionResult={
   card:CatalogCard|null;
@@ -233,20 +233,20 @@ async function collectOcr(uri:string,game:Game){
   return [...new Set(chunks.map(x=>x.trim()).filter(Boolean))].join('\n');
 }
 
-async function candidateSearch(game:Game,queries:string[],numberLocals:string[],detected?:PokemonLanguage,pokemonNames:string[]=[]){
-  const languages=game==='pokemon'
-    ? [...new Set<PokemonLanguage>([...(detected?[detected]:[]),'en','it','ja','zh-cn','zh-tw','fr','de','es','pt-br','ko'])]
-    : [undefined];
-  const requests:Array<Promise<CatalogCard[]>>=[];
-  const limitedQueries=queries.slice(0,6); const limitedLanguages=game==='pokemon'?[...(detected?[detected]:[]),'it','en','ja']:[undefined];
-  for(const q of limitedQueries)for(const lang of [...new Set(limitedLanguages)])requests.push(searchCards(game,q,lang as any).catch(()=>[]));
-  if(game==='pokemon'){
-    for(const name of pokemonNames.slice(0,1))requests.push(getPokemonCardsForPokemon(name).catch(()=>[]));
-    for(const local of numberLocals.slice(0,4))for(const lang of [...new Set(limitedLanguages)])requests.push(searchCards(game,local,lang as any).catch(()=>[]));
-  }
-  const batches=await Promise.all(requests);
+async function candidateSearch(game:Game,queries:string[],numberLocals:string[],detected?:PokemonLanguage){
+  const probes=[...new Set([
+    ...queries.slice(0,8),
+    ...numberLocals.slice(0,8)
+  ])];
+  const batches=await Promise.all(
+    probes.map(query=>searchLocalCatalogCards(game,query,query,160).catch(()=>[]))
+  );
   const seen=new Set<string>();
-  return batches.flat().filter(c=>{if(seen.has(c.id))return false;seen.add(c.id);return true}).slice(0,500);
+  return batches.flat().filter(card=>{
+    if(seen.has(card.id))return false;
+    seen.add(card.id);
+    return !detected||game!=='pokemon'||!card.language||card.language===detected||card.language==='en'||card.language==='it';
+  }).slice(0,500);
 }
 
 export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise<RecognitionResult>{
@@ -259,32 +259,8 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
     ...buildQueries(text),
     ...text.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.length>=3&&x.length<=80)
   ])].slice(0,24);
-  const pokemonNames=game==='pokemon'?await detectPokemonNames(text):[];
+  const pokemonNames:string[]=[];
   let candidates=await candidateSearch(game,queries,numbers.locals,detected,pokemonNames);
-  // Expand on weak evidence, not only when the first pass returns few candidates.
-  // This prevents a wrong first batch (e.g. 3 unrelated printings) from blocking
-  // the secondary-language search.
-  if(game==='pokemon'&&candidates.length<3){
-    const secondary:PokemonLanguage[]=['fr','de','es','pt-br','ko','zh-tw','zh-cn'];
-    const probes=[...new Set([...numbers.locals.slice(0,2),...queries.slice(0,3)])];
-    const extra=await Promise.all(secondary.flatMap(lang=>probes.map(q=>searchCards(game,q,lang).catch(()=>[]))));
-    candidates=[...new Map([...candidates,...extra.flat()].map(card=>[card.id,card])).values()].slice(0,500);
-  }
-  if(candidates.length===0){
-    const emergencyQueries=[...new Set([
-      ...numbers.locals.slice(0,6),
-      ...queries.filter(q=>/[A-Za-zÀ-ÿ]{3,}/.test(q)).slice(0,8)
-    ])];
-    const emergency=await Promise.all(emergencyQueries.map(q=>searchCards(game,q).catch(()=>[])));
-    candidates=[...new Map(emergency.flat().map(card=>[card.id,card])).values()];
-  }
-
-  if(candidates.length===0&&game==='pokemon'){
-    const probes=[...pokemonNames.slice(0,2),...numbers.locals.slice(0,2),...queries.slice(0,3)];
-    const fallback=await Promise.all(probes.map(q=>searchCards(game,q,detected).catch(()=>[])));
-    candidates=[...new Map(fallback.flat().map(c=>[c.id,c])).values()];
-  }
-
   let ranked=candidates.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
 
   // If OCR found a plausible exact collectible number, prefer candidates sharing
@@ -320,31 +296,6 @@ export async function recognizeCardImage(uri:string,game:Game='pokemon'):Promise
     if(a&&b&&a!==b)confidence=Math.max(0,confidence-.22);
   }
   let margin=Math.max(0,confidence-second);
-
-  // A low-confidence result gets one controlled secondary-language probe.
-  // Re-rank after the probe so multilingual cards can escape a misleading
-  // English/Italian first pass without multiplying network traffic.
-  if(game==='pokemon'&&(confidence<0.84||margin<0.14)){
-    const secondary:PokemonLanguage[]=['fr','de','es','pt-br','ko','zh-tw','zh-cn'];
-    const probes=[...new Set([
-      ...numbers.locals.slice(0,2),
-      ...pokemonNames.slice(0,1),
-      ...queries.slice(0,2)
-    ])].slice(0,4);
-    if(probes.length){
-      const extra=await Promise.all(secondary.flatMap(lang=>probes.map(q=>searchCards(game,q,lang).catch(()=>[]))));
-      const merged=[...new Map([...ranked.map(x=>x.card),...extra.flat()].map(card=>[card.id,card])).values()];
-      ranked=merged.map(card=>({card,score:scoreCandidate(card,text,numbers.locals,detected,numbers.best)})).sort((a,b)=>b.score-a.score);
-      if(detected){
-        const sameLanguage=ranked.filter(x=>x.card.language===detected);
-        if(sameLanguage.length)ranked=[...sameLanguage,...ranked.filter(x=>x.card.language!==detected)];
-      }
-      top=ranked[0];
-      second=ranked[1]?.score||0;
-      confidence=top?.score||0;
-      margin=Math.max(0,confidence-second);
-    }
-  }
 
   const status=confidence>=0.84&&margin>=0.14?'matched':confidence>=0.28&&ranked.length>0?'possible':'unknown';
 
