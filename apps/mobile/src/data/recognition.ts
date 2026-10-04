@@ -240,13 +240,13 @@ async function collectOcr(uri:string,game:Game){
 }
 
 async function candidateSearch(game:Game,queries:string[],numberLocals:string[],detected?:PokemonLanguage){
-  const probes=[...new Set([
-    ...queries.slice(0,8),
-    ...numberLocals.slice(0,8)
-  ])];
-  const batches=await Promise.all(
-    probes.map(query=>searchLocalCatalogCards(game,query,query,160).catch(()=>[]))
-  );
+  const nameProbes=[...new Set(queries.filter(q=>!/^\s*[A-Z]{2,8}-[A-Z0-9]{2,12}\d{1,4}\s*$/i.test(q)).slice(0,8))];
+  const codeProbes=[...new Set(numberLocals.slice(0,8))];
+  const requests=[
+    ...nameProbes.map(name=>searchLocalCatalogCards(game,name,'',160).catch(()=>[])),
+    ...codeProbes.map(code=>searchLocalCatalogCards(game,'',code,160).catch(()=>[]))
+  ];
+  const batches=await Promise.all(requests);
   const seen=new Set<string>();
   return batches.flat().filter(card=>{
     if(seen.has(card.id))return false;
