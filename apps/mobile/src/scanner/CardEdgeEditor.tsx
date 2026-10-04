@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {PanResponder,StyleSheet,Text,TouchableOpacity,View,Image,LayoutChangeEvent,ActivityIndicator} from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import {SaveFormat} from 'expo-image-manipulator';
-import {Skia,ColorType,AlphaType} from '@shopify/react-native-skia';
+import {decodeJpegBase64} from '../data/imagePixels';
 
 type MarginKey='left'|'right'|'top'|'bottom';
 type Margins={left:number;right:number;top:number;bottom:number};
@@ -20,11 +20,9 @@ function lum(r:number,g:number,b:number){return .299*r+.587*g+.114*b;}
 async function detectPrintedMargins(uri:string):Promise<Margins>{
   const small=await ImageManipulator.manipulateAsync(uri,[{resize:{width:520}}],{compress:.82,format:SaveFormat.JPEG,base64:true});
   if(!small.base64)throw new Error('Immagine non disponibile');
-  const image=Skia.Image.MakeImageFromEncoded(Skia.Data.fromBase64(small.base64));
-  if(!image)throw new Error('Decodifica immagine fallita');
-  const width=image.width(),height=image.height();
-  const pixels=image.readPixels(0,0,{width,height,colorType:ColorType.RGBA_8888,alphaType:AlphaType.Unpremul});
-  if(!pixels)throw new Error('Pixel non disponibili');
+  const decoded=decodeJpegBase64(small.base64);
+  const width=decoded.width,height=decoded.height;
+  const pixels=decoded.data;
   const at=(x:number,y:number)=>{const xx=Math.max(0,Math.min(width-1,x)),yy=Math.max(0,Math.min(height-1,y)),i=(yy*width+xx)*4;return lum(pixels[i],pixels[i+1],pixels[i+2]);};
   const score=(side:MarginKey,p:number)=>{let s=0,n=0;if(side==='top'||side==='bottom'){const y=side==='top'?p:height-1-p;for(let x=Math.floor(width*.22);x<width*.78;x+=2){s+=Math.abs(at(x,y)-at(x,y+(side==='top'?1:-1)));n++;}}else{const x=side==='left'?p:width-1-p;for(let y=Math.floor(height*.22);y<height*.78;y+=2){s+=Math.abs(at(x,y)-at(x+(side==='left'?1:-1),y));n++;}}return s/Math.max(1,n);};
   const scan=(side:MarginKey,total:number)=>{let best=total*.055,bestScore=-1;for(let p=Math.floor(total*.02);p<=Math.floor(total*.24);p+=2){const s=score(side,p);if(s>bestScore){bestScore=s;best=p;}}return clamp(best/total);};
