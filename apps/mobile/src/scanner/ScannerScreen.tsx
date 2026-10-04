@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 // scanner UI and automatic grading pipeline — system camera + side detector + centering
+// scanner foundation rebuilt with VisionCamera 5
 // final Android release trigger
 import {StyleSheet,Text,TouchableOpacity,View,Image,ActivityIndicator,Image as RNImage,ScrollView} from 'react-native';
 import type {CatalogCard} from '../data/catalog';
