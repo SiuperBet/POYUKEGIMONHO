@@ -31,7 +31,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
   const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
   const [professionalRunning,setProfessionalRunning]=useState(false);
   const [editorOpen,setEditorOpen]=useState(false);
-  const [cameraOpen,setCameraOpen]=useState(false);
+  const [cameraOpen,setCameraOpen]=useState(false);const [cameraReady,setCameraReady]=useState(false);const [cameraZoom,setCameraZoom]=useState(0);
   const cameraRef=useRef<CameraView|null>(null);
   const pendingCapture=useRef<((result:{scannedImages:string[]})=>void)|null>(null);
   const [cameraPermission,requestCameraPermission]=useCameraPermissions();
@@ -114,7 +114,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
 
   const smartScan=async()=>{
     if(scannerOpen)return;
-    setError(null);setScannerOpen(true);setMessage('Apertura scanner nativo…');
+    setError(null);setScannerOpen(true);setMessage('Apertura scanner carta…');
     try{
       const result=await scanDocument({maxNumDocuments:1,croppedImageQuality:100});
       const scanned=result.scannedImages?.[0];
@@ -122,13 +122,13 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
         const uri=scanned.startsWith('file://')?scanned:'file://'+scanned;
         setLastPhoto(uri);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);
         await new Promise<void>(resolve=>RNImage.getSize(uri,(width,height)=>{const aspect=width/Math.max(1,height);setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});resolve();},()=>resolve()));
-        setMessage('✓ Carta raddrizzata • ora controlliamo la centratura sui 4 margini');
+        setMessage('✓ Foto acquisita • rileviamo bordo fisico e cornice stampata per la centratura');
         setEditorOpen(true);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }else setMessage('Nessuna carta acquisita.');
     }catch(errorValue){
       const text=String(errorValue??'');const cancelled=/cancel|dismiss|back/i.test(text);
-      setMessage(cancelled?'Scansione annullata.':'Scanner nativo non disponibile.');
+      setMessage(cancelled?'Scansione annullata.':'Impossibile acquisire la carta.');
       if(!cancelled)setError('Il sistema non ha potuto avviare lo scanner. Puoi riprovare.');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(()=>{});
     }finally{setScannerOpen(false);}
@@ -198,14 +198,14 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
     <View style={styles.stage}>
       {cameraOpen?
         <View style={styles.cameraShell}>
-          <CameraView ref={cameraRef} style={styles.cameraView} facing="back" mode="picture" autofocus="on" ratio="4:3" />
+          <CameraView ref={cameraRef} style={styles.cameraView} facing="back" mode="picture" autofocus="on" ratio="4:3" zoom={cameraZoom} onCameraReady={()=>setCameraReady(true)} onMountError={()=>setError('Fotocamera non disponibile. Controlla i permessi e riprova.')} />
           <View pointerEvents="none" style={styles.cameraGuide}>
             <View style={styles.cameraGuideTop}/><View style={styles.cameraGuideRight}/><View style={styles.cameraGuideBottom}/><View style={styles.cameraGuideLeft}/>
-            <Text style={styles.cameraGuideText}>INQUADRA LA CARTA • 4 LATI</Text>
+            <Text style={styles.cameraGuideText}>{cameraReady?'INQUADRA LA CARTA • 4 LATI':'AVVIO FOTOCAMERA…'}</Text>
           </View>
           <View style={styles.cameraControls}>
             <TouchableOpacity style={styles.cameraCancel} onPress={cancelCameraCapture}><Text style={styles.cameraCancelText}>ANNULLA</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.cameraShutter} onPress={()=>void captureCameraPhoto()}><View style={styles.cameraShutterInner}/></TouchableOpacity>
+            <TouchableOpacity style={[styles.cameraShutter,!cameraReady&&{opacity:.45}]} onPress={()=>void captureCameraPhoto()} disabled={!cameraReady}><View style={styles.cameraShutterInner}/></TouchableOpacity>
             <View style={styles.cameraControlSpacer}/>
           </View>
         </View>:
@@ -217,7 +217,7 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
             <Text style={styles.cardIcon}>▣</Text>
           </View>
           <Text style={styles.placeholderTitle}>{scannerOpen?'Rilevamento automatico…':'Scanner pronto'}</Text>
-          <Text style={styles.placeholderCopy}>Lo scanner nativo del telefono individua la carta, segue i quattro angoli e corregge automaticamente prospettiva e crop.</Text>
+          <Text style={styles.placeholderCopy}>Il nuovo scanner usa la fotocamera in tempo reale: guida sui 4 lati, acquisizione stabile e controllo locale del bordo della carta e della cornice stampata.</Text>
           {scannerOpen&&<ActivityIndicator size="small"/>}
         </View>
       }
