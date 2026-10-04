@@ -274,13 +274,15 @@ async function candidateSearch(game:Game,queries:string[],numberLocals:string[],
   const localCards=localBatches.flat();
 
   const languages:PokemonLanguage[]=game==='pokemon'
-    ? (detected?[detected]:['it','en'])
+    ? (detected
+        ? [detected]
+        : ['it','en','ja','zh-tw','zh-cn','ko'])
     : [];
   const remoteRequests:Promise<CatalogCard[]>[]=[];
   if(game==='pokemon'){
-    // Prefer the detected language. Without a reliable language signal, use
-    // Italian + English only; expanding to every language is deferred until
-    // there is a concrete candidate and avoids a burst of network requests.
+    // Prefer the detected language. If script detection is inconclusive,
+    // probe the main international + Asian print languages as a bounded
+    // fallback. searchCards itself performs name/localId/ID matching.
     for(const language of languages){
       for(const name of nameProbes.slice(0,2))remoteRequests.push(searchCards('pokemon',name,language).catch(()=>[]));
       for(const code of codeProbes.slice(0,2))remoteRequests.push(searchCards('pokemon',code,language).catch(()=>[]));
