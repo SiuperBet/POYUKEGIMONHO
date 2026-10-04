@@ -96,7 +96,11 @@ function scoreCandidate(card:CatalogCard,ocr:string,locals:string[],detected?:Po
   if(name&&source.includes(name))score+=0.32;
   if(compactName.length>=4&&compactSource.includes(compactName))score+=0.18;
   if(card.number){
-    const rawNumber=String(card.number).replace(/\s/g,'');
+    const rawNumber=String(card.number).replace(/\s/g,'').toUpperCase();
+    const ocrCodes=[...(ocr.toUpperCase().matchAll(/\b[A-Z]{2,8}-[A-Z0-9]{2,12}\d{1,4}\b/g))].map(m=>m[0]);
+    const exactCode=ocrCodes.includes(rawNumber);
+    if(exactCode)score+=0.62;
+    else if(ocrCodes.some(code=>code.includes(rawNumber)||rawNumber.includes(code)))score+=0.18;
     const n=rawNumber.split('/')[0].replace(/^[^0-9]*/,'').replace(/^0+/,'')||rawNumber;
     const exactLocal=locals.some(x=>{
       const lx=String(x).split('/')[0].replace(/^[^0-9]*/,'').replace(/^0+/,'')||String(x);
