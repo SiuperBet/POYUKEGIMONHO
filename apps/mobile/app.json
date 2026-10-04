@@ -22,15 +22,7 @@
         "REQUEST_INSTALL_PACKAGES"
       ]
     },
-    "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Consenti alla fotocamera per scansionare le carte.",
-          "recordAudioAndroid": false
-        }
-      ]
-    ],
+    "plugins": [],
     "newArchEnabled": false
   },
   "plugins": [
