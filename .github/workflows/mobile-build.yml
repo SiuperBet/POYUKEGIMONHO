@@ -4,6 +4,9 @@ permissions:
   contents: write
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +15,7 @@ concurrency:
 
 jobs:
   android-apk:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build]')
     runs-on: ubuntu-latest
     defaults:
       run:
