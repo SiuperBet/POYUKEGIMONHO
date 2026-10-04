@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {SafeAreaView,StatusBar,StyleSheet,Text,TouchableOpacity,View,ScrollView,Image,TextInput,ActivityIndicator,Platform,BackHandler} from 'react-native';
 import {ScannerScreen} from './src/scanner/ScannerScreen';
 import {addGraded,addToCollection,loadCollection,loadGraded,saveCollection,saveGraded,updateGraded,updateCollection,deleteGraded,CollectionItem,GradedItem,Condition,CONDITIONS,estimateCardValueEUR,DefectRecord} from './src/data/store';
-import {getSets,getPokemonSetCards,getPokemonMasterSetCards,getYugiohSetCards,searchCards,hydrateSetDates,hydrateCardDates,mapWithConcurrency,POKEMON_LANGUAGE_LABEL,CatalogCard,CatalogSet,Game} from './src/data/catalog';
+import {getSets,getPokemonSetCards,getPokemonMasterSetCards,getYugiohSetCards,searchCards,hydrateSetDates,hydrateCardDates,mapWithConcurrency,warmScannerCatalog,POKEMON_LANGUAGE_LABEL,CatalogCard,CatalogSet,Game} from './src/data/catalog';
 import {PokedexScreen} from './PokedexScreen';
 import type {VisualAnalysis} from './src/data/visualGrading';
 import type {ProfessionalAnalysis} from './src/data/store';
@@ -66,7 +66,12 @@ export default function App(){
   const setsScrollYRef=useRef(0);
   const [detailCard,setDetailCard]=useState<CatalogCard|null>(null);const [detailVariants,setDetailVariants]=useState<Array<{id:string;label:string;priceEUR?:number;priceUSD?:number;image?:string;cardId?:string;number?:string;setId?:string;variantId?:string;language?:string}>>([]);const [selectedVariantId,setSelectedVariantId]=useState<string|null>(null);const [detailLoading,setDetailLoading]=useState(false);const [gradedDetail,setGradedDetail]=useState<GradedItem|null>(null);const [collectionDetail,setCollectionDetail]=useState<CollectionItem|null>(null);const [collectionDetailIndex,setCollectionDetailIndex]=useState(0);const [pokedexOpen,setPokedexOpen]=useState(false);const [gradingResume,setGradingResume]=useState<GradedItem|null>(null);const collectionSwipeStartX=useRef(0);
 
-  useEffect(()=>{void Promise.all([loadCollection().then(setCollection),loadGraded().then(setGraded)])},[]);
+  useEffect(()=>{
+    void Promise.all([loadCollection().then(setCollection),loadGraded().then(setGraded)]);
+    // Background-only catalog warmup: never blocks the UI or scanner startup.
+    void warmScannerCatalog('pokemon',4).catch(()=>{});
+    void warmScannerCatalog('yugioh',2).catch(()=>{});
+  },[]);
   useEffect(()=>{if(tab!=='sets')return;setLoading(true);getSets(game).then(setSets).catch(()=>setSets([])).finally(()=>setLoading(false))},[tab,game]);
   useEffect(()=>{if(tab!=='sets'||selectedSet||!expansionQuery.trim()){setSetSearchResults([]);return}const t=setTimeout(()=>{setLoading(true);searchCards(game,expansionQuery).then(setSetSearchResults).catch(()=>setSetSearchResults([])).finally(()=>setLoading(false))},350);return()=>clearTimeout(t)},[expansionQuery,game,tab,selectedSet]);
   useEffect(()=>{if(tab!=='sets'||selectedSet)return;const t=setTimeout(()=>setsScrollRef.current?.scrollTo({y:setsScrollYRef.current,animated:false}),0);return()=>clearTimeout(t)},[tab,selectedSet]);
