@@ -20,7 +20,8 @@
     "expo-file-system": "~19.0.23",
     "expo-intent-launcher": "~13.0.8",
     "expo-image-manipulator": "~14.0.8",
-    "jpeg-js": "^0.4.4"
+    "jpeg-js": "^0.4.4",
+    "expo-camera": "~17.0.8"
   },
   "devDependencies": {
     "@types/react": "^19.1.10",
