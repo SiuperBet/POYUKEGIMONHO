@@ -413,6 +413,29 @@ export async function searchLocalCatalogCards(game:Game,nameQuery:string='',numb
   scored.sort((a,b)=>b.score-a.score);
   return scored.slice(0,limit).map(x=>x.card);
 }
+const SCANNER_WARM_CURSOR='catalog:scanner:warm-cursor:v1';
+
+export async function warmScannerCatalog(game:Game,batchSize=4):Promise<{loaded:number;total:number}>{
+  const sets=await getSets(game,game==='pokemon'?'it':'en').catch(()=>[]);
+  if(!sets.length)return {loaded:0,total:0};
+  const rawCursor=await AsyncStorage.getItem(SCANNER_WARM_CURSOR+'::'+game);
+  const cursor=Math.max(0,Number(rawCursor)||0)%sets.length;
+  const batch=Array.from({length:Math.min(batchSize,sets.length)},(_,i)=>sets[(cursor+i)%sets.length]);
+  let loaded=0;
+  await mapWithConcurrency(batch,2,async set=>{
+    try{
+      if(game==='pokemon'){
+        await getPokemonSetCards(String(set.sourceId||set.id).replace(/^\\w+:/,''),'it');
+      }else{
+        await getYugiohSetCards(set.name);
+      }
+      loaded++;
+    }catch{}
+  });
+  await AsyncStorage.setItem(SCANNER_WARM_CURSOR+'::'+game,String((cursor+batch.length)%sets.length)).catch(()=>{});
+  return {loaded,total:sets.length};
+}
+
 export async function hydrateCardDates(game:Game,cards:CatalogCard[]):Promise<CatalogCard[]>{
   if(!cards.length)return cards;
   if(game==='yugioh'){
