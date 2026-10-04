@@ -57,7 +57,7 @@ export function ScannerScreen({onExit,onCaptured,game='pokemon'}:Props){
    const result=await recognizeCardImage(normalized.uri,game);
    setRecognition(result);
    setReview(false);
-   if(result.status==='matched'&&result.card)await onCaptured?.(normalized.uri,result.card);
+   if(result.status==='matched'&&result.card)await onCaptured?.(pendingUri,result.card);
   }catch{setError('Impossibile elaborare la carta. Riprova.')}
   finally{setProcessing(false)}
  };
