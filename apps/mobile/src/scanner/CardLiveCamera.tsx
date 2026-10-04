@@ -1,6 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,StyleSheet,Text,TouchableOpacity,View} from 'react-native';
-import {useEffect,useRef,useState} from 'react';
 import {Camera,useCameraDevice,useCameraPermission,usePhotoOutput} from 'react-native-vision-camera';
 
 type Props={
