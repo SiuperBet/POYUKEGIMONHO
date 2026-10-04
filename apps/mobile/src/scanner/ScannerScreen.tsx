@@ -97,4 +97,35 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const smartScan=async()=>{\n    if(scannerOpen)return;\n    setError(null);setMessage('Inquadra la carta: rilevamento camera live pronto.');setScannerOpen(true);\n  };  if(scannerOpen){\n    return <CardLiveCamera\n      onCancel={()=>{setScannerOpen(false);setMessage('Scansione annullata.');}}\n      onCaptured={async(uri)=>{\n        setScannerOpen(false);\n        setLastPhoto(uri);setBackPhoto(null);setVisualAnalysis(null);setConditionTouched(false);setRecognition(null);setRecognizedVariants([]);setSelectedRecognizedCard(null);\n        await new Promise<void>(resolve=>RNImage.getSize(uri,(width,height)=>{const aspect=width/Math.max(1,height);setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});resolve();},()=>resolve()));\n        setMessage('Foto acquisita • controllo bordo fisico e cornice stampata.');\n        setEditorOpen(true);\n        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);\n      }}\n    />;\n  }\n\n;
+  const smartScan=async()=>{ 
+    if(scannerOpen)return;
+    setError(null);
+    setMessage('Inquadra la carta: rilevamento camera live pronto.');
+    setScannerOpen(true);
+  };
+
+  if(scannerOpen){
+    return <CardLiveCamera
+      onCancel={()=>{setScannerOpen(false);setMessage('Scansione annullata.');}}
+      onCaptured={async(uri)=>{
+        setScannerOpen(false);
+        setLastPhoto(uri);
+        setBackPhoto(null);
+        setVisualAnalysis(null);
+        setConditionTouched(false);
+        setRecognition(null);
+        setRecognizedVariants([]);
+        setSelectedRecognizedCard(null);
+        await new Promise<void>(resolve=>RNImage.getSize(uri,(width,height)=>{
+          const aspect=width/Math.max(1,height);
+          setScanGeometry({width,height,aspect,ok:aspect>=0.66&&aspect<=0.77});
+          resolve();
+        },()=>resolve()));
+        setMessage('Foto acquisita • controllo bordo fisico e cornice stampata.');
+        setEditorOpen(true);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }}
+    />;
+  }
+
+;
