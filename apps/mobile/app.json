@@ -31,5 +31,14 @@
       ]
     ],
     "newArchEnabled": false
-  }
+  },
+  "plugins": [
+    [
+      "expo-camera",
+      {
+        "cameraPermission": "Consenti alla fotocamera per scansionare le carte.",
+        "recordAudioAndroid": false
+      }
+    ]
+  ]
 }
