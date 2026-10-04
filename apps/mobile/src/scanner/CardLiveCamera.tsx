@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,StyleSheet,Text,TouchableOpacity,View} from 'react-native';
+import {useEffect,useRef,useState} from 'react';
 import {Camera,useCameraDevice,useCameraPermission,usePhotoOutput} from 'react-native-vision-camera';
 
 type Props={
@@ -57,7 +58,7 @@ export function CardLiveCamera({onCaptured,onCancel}:Props){
     />
     <View pointerEvents="none" style={styles.dim}/>
     <View pointerEvents="none" style={styles.frame}>
-      <View style={[styles.edge,styles.top]}/><View style={[styles.edge,styles.right]}/><View style={[styles.edge,styles.bottom]}/><View style={[styles.edge,styles.left]}/>
+      <View style={[styles.edge,styles.top]}/><View style={[styles.edge,styles.right]}/><View style={[styles.edge,styles.bottomEdge]}/><View style={[styles.edge,styles.left]}/>
       <View style={[styles.corner,styles.tl]}/><View style={[styles.corner,styles.tr]}/><View style={[styles.corner,styles.br]}/><View style={[styles.corner,styles.bl]}/>
     </View>
     <View style={styles.topBar}>
@@ -87,7 +88,7 @@ const styles=StyleSheet.create({
   dim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.12)'},
   frame:{position:'absolute',left:'9%',right:'9%',top:'17%',bottom:'22%'},
   edge:{position:'absolute',backgroundColor:'#d7ff52',borderRadius:3},
-  top:{left:0,right:0,top:0,height:3},right:{right:0,top:0,bottom:0,width:3},bottom:{left:0,right:0,bottom:0,height:3},left:{left:0,top:0,bottom:0,width:3},
+  top:{left:0,right:0,top:0,height:3},right:{right:0,top:0,bottom:0,width:3},bottomEdge:{left:0,right:0,bottom:0,height:3},left:{left:0,top:0,bottom:0,width:3},
   corner:{position:'absolute',backgroundColor:'#fff'},
   tl:{left:0,top:0,width:26,height:4},tr:{right:0,top:0,width:26,height:4},br:{right:0,bottom:0,width:26,height:4},bl:{left:0,bottom:0,width:26,height:4},
   topBar:{position:'absolute',top:0,left:0,right:0,paddingTop:52,paddingHorizontal:20,flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},
