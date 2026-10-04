@@ -1,49 +1,154 @@
-import React,{useEffect,useRef,useState} from 'react';
-import {StyleSheet,Text,TouchableOpacity,useWindowDimensions,View} from 'react-native';
+import React,{useRef,useState} from 'react';
+import {Platform,StyleSheet,Text,TouchableOpacity,View} from 'react-native';
 import {CameraView,useCameraPermissions,type CameraType} from 'expo-camera';
-import {detectCardGeometry,type CardQuad,type Point} from './cardGeometry';
-import {normalizeCardImage} from './cardNormalization';
-import {decodeJpegBase64} from '../data/imagePixels';
-import * as FileSystem from 'expo-file-system/legacy';
 import type {CatalogCard,Game} from '../data/catalog';
 import {recognizeCardImage,type RecognitionResult} from '../data/recognition';
 import type {ProfessionalAnalysis,GradedItem,Condition} from '../data/store';
 import type {VisualAnalysis} from '../data/visualGrading';
 
-type Props={resumeGraded?:GradedItem;game?:Game;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void;};
-function lineStyle(a:Point,b:Point,w:number,h:number){const x1=a.x*w,y1=a.y*h,x2=b.x*w,y2=b.y*h,len=Math.hypot(x2-x1,y2-y1),angle=Math.atan2(y2-y1,x2-x1)*180/Math.PI;return{left:(x1+x2-len)/2,top:(y1+y2-3)/2,width:len,transform:[{rotate:angle+'deg'}]}}
-function cornerStyle(p:Point,w:number,h:number){return{left:p.x*w-6,top:p.y*h-6}}
-export function ScannerScreen({onExit,onCaptured,game='pokemon'}:Props){
- const{width,height}=useWindowDimensions();const[permission,requestPermission]=useCameraPermissions();const[facing,setFacing]=useState<CameraType>('back');const[torch,setTorch]=useState(false);const[ready,setReady]=useState(false);const[quad,setQuad]=useState<CardQuad|null>(null);const[valid,setValid]=useState(false);const[confidence,setConfidence]=useState(0);const[qualityMessage,setQualityMessage]=useState('');const[processing,setProcessing]=useState(false);const[recognition,setRecognition]=useState<RecognitionResult|null>(null);const[pendingUri,setPendingUri]=useState<string|null>(null);
- const camera=useRef<CameraView>(null),captureLock=useRef(false);
- useEffect(()=>{if(permission&&!permission.granted)void requestPermission()},[permission,requestPermission]);
- const capture=async()=>{if(processing||captureLock.current)return;captureLock.current=true;const result=await camera.current?.takePictureAsync({quality:1,skipProcessing:false});if(!result?.uri){captureLock.current=false;return}setProcessing(true);setQualityMessage('Controllo qualità…');try{const detection=await detectCardGeometry(result.uri);if(!detection||!detection.centered||!detection.stableShape||detection.confidence<.62){setValid(false);setQuad(null);setQualityMessage('Bordo carta non affidabile — centra tutta la carta e riprova');return}setQuad(detection.quad);setConfidence(detection.confidence);setValid(true);const normalized=await normalizeCardImage(result.uri,detection.quad);if(!normalized.quality.readable){const q=normalized.quality;setValid(false);setQualityMessage(q.blurRisk?'Foto sfocata — tieni il telefono fermo':q.darkRisk?'Immagine troppo scura — aumenta la luce':q.reflectionRisk?'Troppi riflessi — inclina leggermente la carta':'Qualità insufficiente — avvicina e mantieni la carta ferma');return}setQualityMessage('Riconoscimento carta…');
-      const reads:{result:RecognitionResult;uri:string}[]=[{result:await recognizeCardImage(normalized.uri,game),uri:normalized.uri}];
-      // A second independent read reduces OCR/blur noise without adding a network dependency.
-      if(reads[0].result.status!=='matched'){
-        const secondPhoto=await camera.current?.takePictureAsync({quality:.85,skipProcessing:false});
-        if(secondPhoto?.uri){
-          const secondDetection=await detectCardGeometry(secondPhoto.uri);
-          if(secondDetection){
-            const secondNormalized=await normalizeCardImage(secondPhoto.uri,secondDetection.quad);
-            if(secondNormalized.quality.readable)reads.push({result:await recognizeCardImage(secondNormalized.uri,game),uri:secondNormalized.uri});
-          }
-        }
-      }
-      const counts=new Map<string,{count:number;best:{result:RecognitionResult;uri:string}}>();
-      for(const read of reads){
-        if(!read.result.card)continue;
-        const key=read.result.card.id;
-        const current=counts.get(key);
-        if(!current||read.result.confidence>current.best.result.confidence)counts.set(key,{count:(current?.count||0)+1,best:read});
-        else if(current)current.count++;
-      }
-      const voted=[...counts.values()].sort((a,b)=>b.count-a.count||b.best.result.confidence-a.best.result.confidence)[0]?.best;
-      const recognized=voted||reads.sort((a,b)=>b.result.confidence-a.result.confidence)[0];
-      setRecognition(recognized.result);setPendingUri(recognized.uri);
-      if(recognized.result.status==='matched'&&recognized.result.card){await onCaptured?.(recognized.uri,recognized.result.card)}}catch{setValid(false);setQualityMessage('Analisi non riuscita. Riprova')}finally{captureLock.current=false;setProcessing(false)}};
- captureRef.current=capture; if(!permission)return<View style={styles.center}><Text style={styles.copy}>Preparazione fotocamera…</Text></View>;
- if(!permission.granted)return<View style={styles.center}><Text style={styles.title}>Fotocamera necessaria</Text><Text style={styles.copy}>CARDGRADE usa la fotocamera solo per acquisire la carta.</Text><TouchableOpacity style={styles.primary} onPress={()=>void requestPermission()}><Text style={styles.primaryText}>CONSENTI FOTOCAMERA</Text></TouchableOpacity><TouchableOpacity style={styles.secondary} onPress={onExit}><Text style={styles.secondaryText}>TORNA ALL'APP</Text></TouchableOpacity></View>;
- return<View style={styles.root}><CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch} mode="picture" animateShutter={false} onCameraReady={()=>setReady(true)}/><View style={styles.scrim} pointerEvents="none"/><View pointerEvents="none" style={styles.guide}><View style={styles.guideCornerTL}/><View style={styles.guideCornerTR}/><View style={styles.guideCornerBR}/><View style={styles.guideCornerBL}/></View>{quad&&<View style={StyleSheet.absoluteFill} pointerEvents="none"><View style={[styles.edge,{backgroundColor:valid?'#b8ff5a':'#fff'},lineStyle(quad.topLeft,quad.topRight,width,height)]}/><View style={[styles.edge,{backgroundColor:valid?'#b8ff5a':'#fff'},lineStyle(quad.topRight,quad.bottomRight,width,height)]}/><View style={[styles.edge,{backgroundColor:valid?'#b8ff5a':'#fff'},lineStyle(quad.bottomRight,quad.bottomLeft,width,height)]}/><View style={[styles.edge,{backgroundColor:valid?'#b8ff5a':'#fff'},lineStyle(quad.bottomLeft,quad.topLeft,width,height)]}/>{[quad.topLeft,quad.topRight,quad.bottomRight,quad.bottomLeft].map((p,i)=><View key={i} style={[styles.corner,{backgroundColor:valid?'#b8ff5a':'#fff'},cornerStyle(p,width,height)]}/>)}</View>}<View style={styles.header}><TouchableOpacity style={styles.iconButton} onPress={onExit}><Text style={styles.icon}>×</Text></TouchableOpacity><View style={styles.headerTitle}><Text style={styles.kicker}>CARDGRADE</Text><Text style={styles.mode}>SCANNER</Text></View><TouchableOpacity style={styles.iconButton} onPress={()=>setTorch(v=>!v)}><Text style={styles.icon}>{torch?'☼':'◌'}</Text></TouchableOpacity></View><View style={styles.status}><Text style={[styles.statusTitle,valid&&styles.validText]}>{processing?'Analisi della foto…':valid?'Carta centrata — mantieni la posizione':qualityMessage|| (quad?'Rilevamento carta…':'Inquadra la carta')}</Text>{recognition&&<View style={styles.result}><Text style={styles.resultTitle}>{recognition.status==='matched'&&recognition.card?recognition.card.name:recognition.status==='possible'?'Possibile corrispondenza':'Carta non riconosciuta'}</Text>{recognition.status==='possible'&&pendingUri&&recognition.candidates.slice(0,3).map((card,i)=><TouchableOpacity key={card.id} style={styles.resultCandidateButton} onPress={()=>void (async()=>{setRecognition({...recognition,status:'matched',card,confidence:Math.max(recognition.confidence,.84),margin:Math.max(recognition.margin,.14)});await onCaptured?.(pendingUri,card)})()}><Text style={styles.resultCandidate}>{i+1}. {card.name}{card.number?' · '+card.number:''}{card.language?' · '+card.language:''}</Text><Text style={styles.confirmText}>SELEZIONA</Text></TouchableOpacity>)}</View>}<Text style={styles.statusCopy}>{quad?(Math.round(confidence*100)+'% geometria • 4 lati + 4 angoli'):'Posiziona la carta interamente nell’inquadratura'}</Text></View><View style={styles.footer}><View style={styles.sidePlaceholder}/><TouchableOpacity disabled={!ready||processing} style={[styles.shutter,(!ready||processing)&&styles.shutterDisabled]} onPress={()=>void capture()}><View style={styles.shutterInner}/></TouchableOpacity><TouchableOpacity style={styles.secondary} onPress={()=>setFacing(v=>v==='back'?'front':'back')}><Text style={styles.secondaryText}>CAMBIA</Text></TouchableOpacity></View></View>
+type Props={
+  resumeGraded?:GradedItem;
+  game?:Game;
+  onExit?:()=>void;
+  onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;
+  onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;
+  onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;
+  onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;
+  onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;
+  onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;
+  onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void;
+};
+
+type NativeScanner={launchAsync:()=>Promise<{uri:string}|null>};
+
+function getNativeScanner():NativeScanner|null{
+  if(Platform.OS!=='android')return null;
+  try{return require('../../modules/cardgrade-document-scanner/src').default as NativeScanner}catch{return null}
 }
-const styles=StyleSheet.create({root:{flex:1,backgroundColor:'#000'},center:{flex:1,backgroundColor:'#07090c',alignItems:'center',justifyContent:'center',padding:28},scrim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.12)'},header:{position:'absolute',top:18,left:18,right:18,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},headerTitle:{alignItems:'center'},kicker:{color:'#dce3ea',fontSize:10,fontWeight:'900',letterSpacing:1.6},mode:{color:'#fff',fontSize:15,fontWeight:'900',letterSpacing:1},iconButton:{width:42,height:42,borderRadius:21,backgroundColor:'rgba(0,0,0,.48)',alignItems:'center',justifyContent:'center'},icon:{color:'#fff',fontSize:25,fontWeight:'300'},status:{position:'absolute',top:84,left:20,right:20,alignItems:'center'},result:{marginTop:10,padding:10,borderRadius:12,backgroundColor:'rgba(0,0,0,.62)',maxWidth:340},resultTitle:{color:'#fff',fontSize:15,fontWeight:'900',textAlign:'center'},resultCandidateButton:{marginTop:5,paddingVertical:8,paddingHorizontal:10,borderRadius:9,backgroundColor:'rgba(255,255,255,.08)',width:300},resultCandidate:{color:'rgba(255,255,255,.92)',fontSize:11,textAlign:'center'},confirmText:{color:'#b8ff5a',fontSize:9,fontWeight:'900',textAlign:'center',marginTop:3},statusTitle:{color:'#fff',fontSize:18,fontWeight:'900',textAlign:'center'},validText:{color:'#b8ff5a'},statusCopy:{marginTop:6,color:'rgba(255,255,255,.78)',fontSize:12,textAlign:'center'},edge:{position:'absolute',height:3,borderRadius:2},corner:{position:'absolute',width:12,height:12,borderRadius:6},footer:{position:'absolute',left:24,right:24,bottom:28,height:88,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},guide:{position:'absolute',left:'28%',top:'25%',width:'44%',height:'50%',borderWidth:1,borderColor:'rgba(255,255,255,.45)',borderRadius:14},guideCornerTL:{position:'absolute',left:-2,top:-2,width:28,height:28,borderLeftWidth:4,borderTopWidth:4,borderColor:'#fff',borderTopLeftRadius:12},guideCornerTR:{position:'absolute',right:-2,top:-2,width:28,height:28,borderRightWidth:4,borderTopWidth:4,borderColor:'#fff',borderTopRightRadius:12},guideCornerBR:{position:'absolute',right:-2,bottom:-2,width:28,height:28,borderRightWidth:4,borderBottomWidth:4,borderColor:'#fff',borderBottomRightRadius:12},guideCornerBL:{position:'absolute',left:-2,bottom:-2,width:28,height:28,borderLeftWidth:4,borderBottomWidth:4,borderColor:'#fff',borderBottomLeftRadius:12},shutter:{width:76,height:76,borderRadius:38,borderWidth:5,borderColor:'#fff',alignItems:'center',justifyContent:'center'},shutterDisabled:{opacity:.4},shutterInner:{width:58,height:58,borderRadius:29,backgroundColor:'#fff'},sidePlaceholder:{width:82},primary:{marginTop:20,paddingHorizontal:22,paddingVertical:15,borderRadius:14,backgroundColor:'#b8ff5a'},primaryText:{color:'#10130c',fontWeight:'900'},secondary:{paddingHorizontal:18,paddingVertical:12,borderRadius:13,backgroundColor:'rgba(0,0,0,.55)',minWidth:82,alignItems:'center'},secondaryText:{color:'#fff',fontWeight:'800',fontSize:12},title:{color:'#fff',fontSize:28,fontWeight:'900',textAlign:'center'},copy:{color:'#9aa3af',fontSize:15,lineHeight:22,textAlign:'center',maxWidth:340,marginTop:10}});
+
+export function ScannerScreen({onExit,onCaptured,game='pokemon'}:Props){
+  const nativeScanner=useRef<NativeScanner|null>(null);
+  const[permission,requestPermission]=useCameraPermissions();
+  const[processing,setProcessing]=useState(false);
+  const[recognition,setRecognition]=useState<RecognitionResult|null>(null);
+  const[pendingUri,setPendingUri]=useState<string|null>(null);
+  const[error,setError]=useState('');
+  const[ready,setReady]=useState(false);
+  const[camera,setCamera]=useState<CameraView|null>(null);
+
+  const processScan=async(uri:string)=>{
+    setProcessing(true);
+    setError('');
+    setRecognition(null);
+    setPendingUri(uri);
+    try{
+      const result=await recognizeCardImage(uri,game);
+      setRecognition(result);
+      if(result.status==='matched'&&result.card)await onCaptured?.(uri,result.card);
+    }catch{
+      setError('Analisi della carta non riuscita. Riprova con una foto nitida.');
+    }finally{setProcessing(false)}
+  };
+
+  const launchDocumentScanner=async()=>{
+    if(processing)return;
+    setProcessing(true);
+    setError('');
+    setRecognition(null);
+    try{
+      nativeScanner.current=nativeScanner.current||getNativeScanner();
+      const scanner=nativeScanner.current;
+      if(!scanner){
+        setError('Scanner nativo non disponibile su questo dispositivo.');
+        return;
+      }
+      const result=await scanner.launchAsync();
+      if(result?.uri)await processScan(result.uri);
+    }catch{
+      setError('Impossibile avviare lo scanner. Riprova.');
+    }finally{setProcessing(false)}
+  };
+
+  const manualCameraCapture=async()=>{
+    if(!camera||processing)return;
+    setProcessing(true);
+    try{
+      const photo=await camera.takePictureAsync({quality:1,skipProcessing:false});
+      if(photo?.uri)await processScan(photo.uri);
+    }catch{
+      setError('Acquisizione non riuscita. Riprova.');
+    }finally{setProcessing(false)}
+  };
+
+  if(Platform.OS==='android'){
+    return <View style={styles.root}>
+      <View style={styles.nativeHeader}>
+        <TouchableOpacity style={styles.iconButton} onPress={onExit}><Text style={styles.icon}>×</Text></TouchableOpacity>
+        <View style={styles.headerTitle}><Text style={styles.kicker}>CARDGRADE</Text><Text style={styles.mode}>SCANNER</Text></View>
+        <View style={styles.iconSpacer}/>
+      </View>
+      <View style={styles.nativeCenter}>
+        <View style={styles.cardGuide}><View style={styles.guideTL}/><View style={styles.guideTR}/><View style={styles.guideBR}/><View style={styles.guideBL}/></View>
+        <Text style={styles.statusTitle}>{processing?'Elaborazione…':'Posiziona la carta nell’inquadratura'}</Text>
+        <Text style={styles.statusCopy}>Lo scanner rileva automaticamente i 4 bordi, corregge la prospettiva e acquisisce la carta.</Text>
+        {error?<Text style={styles.error}>{error}</Text>:null}
+        {recognition?<View style={styles.result}>
+          <Text style={styles.resultTitle}>{recognition.status==='matched'&&recognition.card?recognition.card.name:recognition.status==='possible'?'Possibile corrispondenza':'Carta non riconosciuta'}</Text>
+          {recognition.status==='possible'&&pendingUri&&recognition.candidates.slice(0,3).map((card,i)=><TouchableOpacity key={card.id} style={styles.candidate} onPress={()=>void(async()=>{setRecognition({...recognition,status:'matched',card,confidence:Math.max(.84,recognition.confidence),margin:Math.max(.14,recognition.margin)});await onCaptured?.(pendingUri,card)})()}>
+            <Text style={styles.candidateText}>{i+1}. {card.name}{card.number?' · '+card.number:''}{card.language?' · '+card.language:''}</Text>
+            <Text style={styles.confirm}>SELEZIONA</Text>
+          </TouchableOpacity>)}
+        </View>:null}
+        <TouchableOpacity disabled={processing} style={[styles.scanButton,processing&&styles.disabled]} onPress={()=>void launchDocumentScanner()}>
+          <Text style={styles.scanButtonText}>{processing?'ELABORAZIONE…':'SCANSIONA CARTA'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.freeNote}>Scanner nativo Android · acquisizione automatica · correzione prospettica</Text>
+      </View>
+    </View>;
+  }
+
+  if(!permission)return<View style={styles.center}><Text style={styles.statusCopy}>Preparazione fotocamera…</Text></View>;
+  if(!permission.granted)return<View style={styles.center}><Text style={styles.title}>Fotocamera necessaria</Text><Text style={styles.statusCopy}>CARDGRADE usa la fotocamera per acquisire la carta.</Text><TouchableOpacity style={styles.scanButton} onPress={()=>void requestPermission()}><Text style={styles.scanButtonText}>CONSENTI FOTOCAMERA</Text></TouchableOpacity><TouchableOpacity style={styles.secondary} onPress={onExit}><Text style={styles.secondaryText}>TORNA ALL'APP</Text></TouchableOpacity></View>;
+
+  return <View style={styles.root}>
+    <CameraView ref={setCamera} style={StyleSheet.absoluteFill} facing={'back' as CameraType} mode="picture" animateShutter={false} onCameraReady={()=>setReady(true)}/>
+    <View style={styles.scrim}/>
+    <View style={styles.header}><TouchableOpacity style={styles.iconButton} onPress={onExit}><Text style={styles.icon}>×</Text></TouchableOpacity><View style={styles.headerTitle}><Text style={styles.kicker}>CARDGRADE</Text><Text style={styles.mode}>SCANNER</Text></View><View style={styles.iconSpacer}/></View>
+    <View style={styles.nativeCenter}><Text style={styles.statusTitle}>{processing?'Elaborazione…':ready?'Posiziona la carta e premi SCANSIONA':'Preparazione fotocamera…'}</Text><TouchableOpacity disabled={!ready||processing} style={[styles.scanButton,(!ready||processing)&&styles.disabled]} onPress={()=>void manualCameraCapture()}><Text style={styles.scanButtonText}>SCANSIONA CARTA</Text></TouchableOpacity></View>
+  </View>;
+}
+
+const styles=StyleSheet.create({
+  root:{flex:1,backgroundColor:'#050608'},
+  center:{flex:1,backgroundColor:'#050608',alignItems:'center',justifyContent:'center',padding:28},
+  scrim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.12)'},
+  header:{position:'absolute',top:18,left:18,right:18,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+  nativeHeader:{position:'absolute',top:18,left:18,right:18,flexDirection:'row',alignItems:'center',justifyContent:'space-between',zIndex:3},
+  headerTitle:{alignItems:'center'},
+  kicker:{color:'#dce3ea',fontSize:10,fontWeight:'900',letterSpacing:1.6},
+  mode:{color:'#fff',fontSize:15,fontWeight:'900',letterSpacing:1},
+  iconButton:{width:42,height:42,borderRadius:21,backgroundColor:'rgba(0,0,0,.55)',alignItems:'center',justifyContent:'center'},
+  iconSpacer:{width:42,height:42},
+  icon:{color:'#fff',fontSize:25,fontWeight:'300'},
+  nativeCenter:{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:28},
+  cardGuide:{width:'64%',aspectRatio:63/88,borderWidth:1,borderColor:'rgba(255,255,255,.38)',borderRadius:14,marginBottom:28},
+  guideTL:{position:'absolute',left:-2,top:-2,width:30,height:30,borderLeftWidth:4,borderTopWidth:4,borderColor:'#fff',borderTopLeftRadius:12},
+  guideTR:{position:'absolute',right:-2,top:-2,width:30,height:30,borderRightWidth:4,borderTopWidth:4,borderColor:'#fff',borderTopRightRadius:12},
+  guideBR:{position:'absolute',right:-2,bottom:-2,width:30,height:30,borderRightWidth:4,borderBottomWidth:4,borderColor:'#fff',borderBottomRightRadius:12},
+  guideBL:{position:'absolute',left:-2,bottom:-2,width:30,height:30,borderLeftWidth:4,borderBottomWidth:4,borderColor:'#fff',borderBottomLeftRadius:12},
+  statusTitle:{color:'#fff',fontSize:19,fontWeight:'900',textAlign:'center'},
+  statusCopy:{marginTop:8,color:'rgba(255,255,255,.76)',fontSize:13,lineHeight:19,textAlign:'center',maxWidth:350},
+  error:{marginTop:12,color:'#ff8b8b',fontSize:13,fontWeight:'800',textAlign:'center'},
+  result:{marginTop:14,padding:12,borderRadius:14,backgroundColor:'rgba(0,0,0,.62)',maxWidth:340},
+  resultTitle:{color:'#fff',fontSize:15,fontWeight:'900',textAlign:'center'},
+  candidate:{marginTop:6,padding:9,borderRadius:9,backgroundColor:'rgba(255,255,255,.08)'},
+  candidateText:{color:'#fff',fontSize:11,textAlign:'center'},
+  confirm:{marginTop:3,color:'#b8ff5a',fontSize:9,fontWeight:'900',textAlign:'center'},
+  scanButton:{marginTop:22,minWidth:230,paddingHorizontal:24,paddingVertical:16,borderRadius:15,backgroundColor:'#b8ff5a',alignItems:'center'},
+  scanButtonText:{color:'#10130c',fontWeight:'900',fontSize:14},
+  disabled:{opacity:.45},
+  freeNote:{marginTop:12,color:'rgba(255,255,255,.48)',fontSize:10,textAlign:'center'},
+  secondary:{marginTop:16,paddingHorizontal:18,paddingVertical:12,borderRadius:13,backgroundColor:'rgba(0,0,0,.55)'},
+  secondaryText:{color:'#fff',fontWeight:'800',fontSize:12},
+  title:{color:'#fff',fontSize:26,fontWeight:'900',textAlign:'center'}
+});
