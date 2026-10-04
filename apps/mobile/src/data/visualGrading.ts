@@ -1,6 +1,6 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import {SaveFormat} from 'expo-image-manipulator';
-import {Skia,ColorType,AlphaType} from '@shopify/react-native-skia';
+import {decodeJpegBase64} from './imagePixels';
 import type {Condition,DefectRecord,ProfessionalAnalysis,InspectionPhoto} from './store';
 
 export type VisualAnalysis={condition:Condition;score:number;confidence:number;frontQuality:number;backQuality?:number;defects:DefectRecord[];hasBack:boolean;engine:'local-vision-assisted'|'local-vision-assisted-v2'|'manual';notes:string[];professional?:ProfessionalAnalysis};
@@ -52,9 +52,9 @@ function analysePixels(pixels:Uint8Array|Float32Array,width:number,height:number
 async function inspect(uri:string):Promise<ImageStats>{
   const small=await ImageManipulator.manipulateAsync(uri,[{resize:{width:640}}],{compress:0.92,format:SaveFormat.JPEG,base64:true});
   if(!small.base64)throw new Error('Immagine non disponibile');
-  const image=Skia.Image.MakeImageFromEncoded(Skia.Data.fromBase64(small.base64)); if(!image)throw new Error('Decodifica immagine fallita');
-  const width=image.width(),height=image.height();
-  const pixels=image.readPixels(0,0,{width,height,colorType:ColorType.RGBA_8888,alphaType:AlphaType.Unpremul}); if(!pixels)throw new Error('Pixel non disponibili');
+  const decoded=decodeJpegBase64(small.base64);
+  const width=decoded.width,height=decoded.height;
+  const pixels=decoded.data;
   const all=analysePixels(pixels,width,height,0,0,width,height);
   const marginX=Math.max(3,Math.floor(width*.055)),marginY=Math.max(3,Math.floor(height*.055));
   const cw=width*.18,ch=height*.18;
