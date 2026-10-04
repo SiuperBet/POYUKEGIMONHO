@@ -11,9 +11,8 @@ import {CardEdgeEditor} from './CardEdgeEditor';
 import type {RecognitionResult} from '../data/recognition';
 import type {VisualAnalysis} from '../data/visualGrading';
 import * as Haptics from 'expo-haptics';
-import {CameraView,useCameraPermissions} from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-
+import * as ImagePicker from 'expo-image-picker';
 type Props={resumeGraded?:GradedItem;onExit?:()=>void;onCaptured?:(uri:string,card?:CatalogCard)=>Promise<string|undefined>|string|undefined;onCardSelected?:(gradedId:string,card:CatalogCard)=>Promise<void>|void;onBackCaptured?:(gradedId:string,uri:string)=>Promise<void>|void;onSaveCollection?:(card:CatalogCard,condition:Condition,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysis,professionalAnalysis?:ProfessionalAnalysis)=>Promise<void>|void;onProfessionalAnalysis?:(gradedId:string,analysis:ProfessionalAnalysis)=>Promise<void>|void;onConditionSelected?:(gradedId:string,condition:Condition)=>Promise<void>|void;onVisualAnalysis?:(gradedId:string,analysis:VisualAnalysis)=>Promise<void>|void};
 
 export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onSaveCollection,onConditionSelected,onVisualAnalysis,onProfessionalAnalysis,onCardSelected}:Props){
@@ -32,39 +31,32 @@ export function ScannerScreen({resumeGraded,onExit,onCaptured,onBackCaptured,onS
   const [selectedRecognizedCard,setSelectedRecognizedCard]=useState<CatalogCard|null>(null);
   const [professionalRunning,setProfessionalRunning]=useState(false);
   const [editorOpen,setEditorOpen]=useState(false);
-  const [cameraOpen,setCameraOpen]=useState(false);const [cameraReady,setCameraReady]=useState(false);const [cameraZoom,setCameraZoom]=useState(0);
-  const cameraRef=useRef<CameraView|null>(null);
+  const [cameraOpen,setCameraOpen]=useState(false);
   const pendingCapture=useRef<((result:{scannedImages:string[]})=>void)|null>(null);
-  const [cameraPermission,requestCameraPermission]=useCameraPermissions();
-  const systemCameraFallback=useRef(false);
-  const launched=useRef(false);
 
-  const captureWithSystemCamera=async()=>{
-    if(systemCameraFallback.current)return;
-    systemCameraFallback.current=true;
-    setCameraOpen(false);
-    setCameraReady(false);
+  const scanDocument=async(_options:any={})=>{
     try{
       const permission=await ImagePicker.requestCameraPermissionsAsync();
       if(!permission.granted){
-        pendingCapture.current?.({scannedImages:[]});
-        pendingCapture.current=null;
         setError('Permesso fotocamera non disponibile. Abilitalo nelle impostazioni e riprova.');
-        return;
+        return {scannedImages:[]};
       }
-      const result=await ImagePicker.launchCameraAsync({quality:1,allowsEditing:false});
+      setCameraOpen(true);
+      const result=await ImagePicker.launchCameraAsync({
+        mediaTypes:['images'],
+        quality:1,
+        allowsEditing:false
+      });
+      setCameraOpen(false);
       const uri=result.canceled?undefined:result.assets?.[0]?.uri;
-      pendingCapture.current?.({scannedImages:uri?[uri]:[]});
-      pendingCapture.current=null;
-      if(!uri)setMessage('Acquisizione annullata.');
+      return {scannedImages:uri?[uri]:[]};
     }catch(errorValue){
-      pendingCapture.current?.({scannedImages:[]});
-      pendingCapture.current=null;
-      setError('La fotocamera non è disponibile su questo dispositivo. Puoi importare una foto dalla galleria.');
-    }finally{
-      systemCameraFallback.current=false;
+      setCameraOpen(false);
+      setError('La fotocamera non è disponibile. Puoi importare una foto dalla galleria.');
+      return {scannedImages:[]};
     }
   };
+
 
   useEffect(()=>{
     if(!resumeGraded)return;
