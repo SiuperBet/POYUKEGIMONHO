@@ -25,3 +25,7 @@ Il build viene avviato dai commit contrassegnati con `[build]`.
 
 ### Scanner runtime policy
 The Android scanner does not take background still photos for preview detection. Card geometry is evaluated from the user-triggered capture; automatic capture remains disabled until a true live-frame processor is available.
+
+
+### Native Android scanner
+On Android, CARDGRADE uses the Google ML Kit Document Scanner as the primary acquisition layer. It provides a native document-scanner flow with automatic capture, edge detection, perspective correction and gallery import; the resulting JPEG is then passed to CARDGRADE recognition. The app no longer probes the camera by taking periodic background photos.
