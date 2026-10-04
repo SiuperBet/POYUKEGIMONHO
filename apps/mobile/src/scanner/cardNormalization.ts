@@ -1,15 +1,16 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import jpeg from 'jpeg-js';
+import {decodeJpegBase64} from '../data/imagePixels';
 import type {CardQuad} from './cardGeometry';
+import {assessCardQuality,type CardQuality} from './cardQuality';
 
 export type NormalizedCard={
   uri:string;width:number;height:number;sourceWidth:number;sourceHeight:number;quad:CardQuad;
-  quality:{score:number;blurRisk:boolean;darkRisk:boolean;reflectionRisk:boolean};
+  quality:CardQuality;
 };
 
 const TARGET_W=630,TARGET_H=880;
 const clamp=(v:number,a=0,b=1)=>Math.max(a,Math.min(b,v));
-const dist=(a:{x:number;y:number},b:{x:number;y:number})=>Math.hypot(a.x-b.x,a.y-b.y);
 
 function b64ToBytes(input:string){
   const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';const clean=input.replace(/[^A-Za-z0-9+/=]/g,'');const out=new Uint8Array(Math.floor(clean.length*3/4));let buffer=0,bits=0,pos=0;
@@ -29,11 +30,6 @@ function sample(data:Uint8Array,w:number,h:number,x:number,y:number){
   x=clamp(x,0,w-1);y=clamp(y,0,h-1);const x0=Math.floor(x),y0=Math.floor(y),x1=Math.min(w-1,x0+1),y1=Math.min(h-1,y0+1),fx=x-x0,fy=y-y0;
   const out=[0,0,0,255];for(let c=0;c<3;c++){const p00=data[(y0*w+x0)*4+c],p10=data[(y0*w+x1)*4+c],p01=data[(y1*w+x0)*4+c],p11=data[(y1*w+x1)*4+c];out[c]=Math.round((p00+(p10-p00)*fx)*(1-fy)+(p01+(p11-p01)*fx)*fy);}return out;
 }
-function quality(q:CardQuad){
-  const top=dist(q.topLeft,q.topRight),bottom=dist(q.bottomLeft,q.bottomRight),left=dist(q.topLeft,q.bottomLeft),right=dist(q.topRight,q.bottomRight),ratio=((top+bottom)/2)/Math.max(1,(left+right)/2);
-  const ratioScore=clamp(1-Math.abs(ratio-63/88)/(63/88*.28)),symmetry=1-clamp((Math.abs(top-bottom)/Math.max(top,bottom)+Math.abs(left-right)/Math.max(left,right))*.5);
-  return {score:clamp(ratioScore*.7+symmetry*.3),blurRisk:false,darkRisk:false,reflectionRisk:false};
-}
 export async function normalizeCardImage(uri:string,quad:CardQuad):Promise<NormalizedCard>{
   const b64=await FileSystem.readAsStringAsync(uri,{encoding:FileSystem.EncodingType.Base64});
   const raw=jpeg.decode(b64ToBytes(b64),{useTArray:true,formatAsRGBA:true,tolerantDecoding:true,maxResolutionInMP:6});
@@ -43,5 +39,6 @@ export async function normalizeCardImage(uri:string,quad:CardQuad):Promise<Norma
   const encoded=jpeg.encode({data:out,width:TARGET_W,height:TARGET_H},94).data;
   const output=(FileSystem.cacheDirectory||FileSystem.documentDirectory||'')+'cardgrade-normalized-'+Date.now()+'.jpg';
   await FileSystem.writeAsStringAsync(output,bytesToB64(encoded),{encoding:FileSystem.EncodingType.Base64});
-  return {uri:output,width:TARGET_W,height:TARGET_H,sourceWidth:raw.width,sourceHeight:raw.height,quad,quality:quality(quad)};
+  const quality=assessCardQuality(decodeJpegBase64(bytesToB64(encoded)));
+  return {uri:output,width:TARGET_W,height:TARGET_H,sourceWidth:raw.width,sourceHeight:raw.height,quad,quality};
 }
