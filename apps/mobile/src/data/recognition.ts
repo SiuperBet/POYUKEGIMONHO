@@ -2,7 +2,7 @@ import TextRecognition,{TextRecognitionScript} from '@react-native-ml-kit/text-r
 import {Image} from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {CatalogCard,Game,PokemonLanguage,searchLocalCatalogCards} from './catalog';
+import {CatalogCard,Game,PokemonLanguage,searchCards,searchLocalCatalogCards} from './catalog';
 
 export type RecognitionResult={
   card:CatalogCard|null;
@@ -240,15 +240,39 @@ async function collectOcr(uri:string,game:Game){
 }
 
 async function candidateSearch(game:Game,queries:string[],numberLocals:string[],detected?:PokemonLanguage){
-  const nameProbes=[...new Set(queries.filter(q=>!/^\s*[A-Z]{2,8}-[A-Z0-9]{2,12}\d{1,4}\s*$/i.test(q)).slice(0,8))];
-  const codeProbes=[...new Set(numberLocals.slice(0,8))];
-  const requests=[
+  const nameProbes=[...new Set(queries.filter(q=>!/^\s*[A-Z]{2,8}-[A-Z0-9]{2,12}\d{1,4}\s*$/i.test(q)).slice(0,6))];
+  const codeProbes=[...new Set(numberLocals.filter(x=>x.length>0).slice(0,6))];
+
+  // Local cache is always checked first. If the card is not cached yet, fall
+  // back to a targeted catalog lookup using the OCR signals. This means the
+  // scanner is not limited to the few expansions warmed in the background.
+  const localRequests=[
     ...nameProbes.map(name=>searchLocalCatalogCards(game,name,'',160).catch(()=>[])),
     ...codeProbes.map(code=>searchLocalCatalogCards(game,'',code,160).catch(()=>[]))
   ];
-  const batches=await Promise.all(requests);
+  const localBatches=await Promise.all(localRequests);
+  const localCards=localBatches.flat();
+
+  const languages:PokemonLanguage[]=game==='pokemon'
+    ? (detected?[detected]:['it','en'])
+    : [];
+  const remoteRequests:Promise<CatalogCard[]>[]=[];
+  if(game==='pokemon'){
+    // Prefer the detected language. Without a reliable language signal, use
+    // Italian + English only; expanding to every language is deferred until
+    // there is a concrete candidate and avoids a burst of network requests.
+    for(const language of languages){
+      for(const name of nameProbes.slice(0,2))remoteRequests.push(searchCards('pokemon',name,language).catch(()=>[]));
+      for(const code of codeProbes.slice(0,2))remoteRequests.push(searchCards('pokemon',code,language).catch(()=>[]));
+    }
+  }else{
+    // YGOPRODeck can search by card name; the collector/set code is then used
+    // by scoreCandidate to select the exact printing among the returned cards.
+    for(const name of nameProbes.slice(0,3))remoteRequests.push(searchCards('yugioh',name).catch(()=>[]));
+  }
+  const remoteBatches=await Promise.all(remoteRequests);
   const seen=new Set<string>();
-  return batches.flat().filter(card=>{
+  return [...localCards,...remoteBatches.flat()].filter(card=>{
     if(seen.has(card.id))return false;
     seen.add(card.id);
     return !detected||game!=='pokemon'||!card.language||card.language===detected||card.language==='en'||card.language==='it';
