@@ -12,25 +12,43 @@ type Tab='home'|'scan'|'collection'|'graded'|'sets'|'market';
 type SetSort='oldest'|'newest'|'nameAsc'|'nameDesc';
 type MarketSort='priceAsc'|'priceDesc'|'dateAsc'|'dateDesc'|'numberAsc'|'numberDesc';
 const money=(n:number|undefined)=>n&&n>0?'€ '+n.toFixed(2):'—';
+const normalizeTcgdexImage=(uri:string)=>{
+  const cleaned=uri.replace(/\\/(?:low|high)\\.(?:webp|png|jpg|jpeg)$/i,'');
+  if(!cleaned.includes('assets.tcgdex.net/'))return cleaned;
+  return cleaned.replace(/https:\\/\\/assets\\.tcgdex\\.net\\/[^/]+\\//i,'https://assets.tcgdex.net/en/');
+};
 const englishImageFallback=(uri?:string)=>{
   if(!uri)return undefined;
-  return uri.replace('assets.tcgdex.net/it/','assets.tcgdex.net/en/');
+  return normalizeTcgdexImage(uri);
 };
 function SafeCardImage({uri,style,name}:{uri?:string;style:any;name:string}){
   const [attempt,setAttempt]=useState(0);
   const candidates=useMemo(()=>{
     if(!uri)return [];
-    const list=[uri];
-    if(uri.includes('/low.webp'))list.push(uri.replace('/low.webp','/high.webp'));
-    const en=englishImageFallback(uri);
-    if(en&&!list.includes(en))list.push(en);
-    if(en&&en.includes('/low.webp'))list.push(en.replace('/low.webp','/high.webp'));
-    return [...new Set(list)];
+    const original=uri;
+    const base=normalizeTcgdexImage(uri);
+    const isTcgdex=base.includes('assets.tcgdex.net/');
+    if(!isTcgdex)return [original];
+    return [...new Set([
+      base+'/high.webp',
+      base+'/low.webp',
+      base+'/high.png',
+      base+'/low.png',
+      original,
+      original.replace(/\\/(?:low|high)\\.(?:webp|png|jpg|jpeg)$/i,'/high.webp'),
+      original.replace(/\\/(?:low|high)\\.(?:webp|png|jpg|jpeg)$/i,'/low.webp')
+    ])];
   },[uri]);
-  const active=candidates[Math.min(attempt,candidates.length-1)];
-  if(!active)return <View style={[style,styles.imageFallbackBox]}><Text style={styles.imageFallback}>{name.slice(0,1)}</Text></View>;
-  return <Image source={{uri:active}} style={style} resizeMode="contain"
-    onError={()=>setAttempt(value=>Math.min(value+1,candidates.length))}/>;
+  useEffect(()=>{setAttempt(0)},[uri]);
+  const exhausted=attempt>=candidates.length;
+  const active=exhausted?undefined:candidates[attempt];
+  if(!active)return <View style={[style,styles.imageFallbackBox]}><Text style={styles.imageFallback}>{String(name||'?').slice(0,1).toUpperCase()}</Text></View>;
+  return <Image
+    source={{uri:active}}
+    style={style}
+    resizeMode="contain"
+    onError={()=>setAttempt(value=>value+1)}
+  />;
 }
 
 export default function App(){
