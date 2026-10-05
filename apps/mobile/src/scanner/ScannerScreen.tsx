@@ -5,6 +5,7 @@ import {normalizeCardImage} from './cardNormalization';
 import type {Point} from './cardGeometry';
 import type {CatalogCard,Game} from '../data/catalog';
 import {recognizeCardImage,type RecognitionResult} from '../data/recognition';
+import CardgradeDocumentScanner from '../../modules/cardgrade-document-scanner/src';
 import type {ProfessionalAnalysis,GradedItem,Condition} from '../data/store';
 import type {VisualAnalysis} from '../data/visualGrading';
 
@@ -25,7 +26,7 @@ const INITIAL:Quad={topLeft:{x:.02,y:.02},topRight:{x:.98,y:.02},bottomRight:{x:
 
 function getNativeScanner():NativeScanner|null{
  if(Platform.OS!=='android')return null;
- try{return require('@cardgrade/document-scanner').default as NativeScanner}catch{return null}
+ return CardgradeDocumentScanner as NativeScanner;
 }
 function line(a:Point,b:Point,w:number,h:number){const x1=a.x*w,y1=a.y*h,x2=b.x*w,y2=b.y*h,len=Math.hypot(x2-x1,y2-y1);return{left:(x1+x2-len)/2,top:(y1+y2-2)/2,width:len,transform:[{rotate:Math.atan2(y2-y1,x2-x1)*180/Math.PI+'deg'}]};}
 
