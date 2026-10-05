@@ -13,9 +13,9 @@ type SetSort='oldest'|'newest'|'nameAsc'|'nameDesc';
 type MarketSort='priceAsc'|'priceDesc'|'dateAsc'|'dateDesc'|'numberAsc'|'numberDesc';
 const money=(n:number|undefined)=>n&&n>0?'€ '+n.toFixed(2):'—';
 const normalizeTcgdexImage=(uri:string)=>{
-  const cleaned=uri.replace(/\\/(?:low|high)\\.(?:webp|png|jpg|jpeg)$/i,'');
+  const cleaned=uri.replace(/\/(?:low|high)\.(?:webp|png|jpg|jpeg)$/i,'');
   if(!cleaned.includes('assets.tcgdex.net/'))return cleaned;
-  return cleaned.replace(/https:\\/\\/assets\\.tcgdex\\.net\\/[^/]+\\//i,'https://assets.tcgdex.net/en/');
+  return cleaned.replace(/^https:\/\/assets\.tcgdex\.net\/[^/]+\//i,'https://assets.tcgdex.net/en/');
 };
 const englishImageFallback=(uri?:string)=>{
   if(!uri)return undefined;
@@ -35,20 +35,16 @@ function SafeCardImage({uri,style,name}:{uri?:string;style:any;name:string}){
       base+'/high.png',
       base+'/low.png',
       original,
-      original.replace(/\\/(?:low|high)\\.(?:webp|png|jpg|jpeg)$/i,'/high.webp'),
-      original.replace(/\\/(?:low|high)\\.(?:webp|png|jpg|jpeg)$/i,'/low.webp')
+      original.replace(/\/(?:low|high)\.(?:webp|png|jpg|jpeg)$/i,'/high.webp'),
+      original.replace(/\/(?:low|high)\.(?:webp|png|jpg|jpeg)$/i,'/low.webp')
     ])];
   },[uri]);
   useEffect(()=>{setAttempt(0)},[uri]);
   const exhausted=attempt>=candidates.length;
   const active=exhausted?undefined:candidates[attempt];
   if(!active)return <View style={[style,styles.imageFallbackBox]}><Text style={styles.imageFallback}>{String(name||'?').slice(0,1).toUpperCase()}</Text></View>;
-  return <Image
-    source={{uri:active}}
-    style={style}
-    resizeMode="contain"
-    onError={()=>setAttempt(value=>value+1)}
-  />;
+  return <Image source={{uri:active}} style={style} resizeMode="contain"
+    onError={()=>setAttempt(value=>value+1)}/>;
 }
 
 export default function App(){
