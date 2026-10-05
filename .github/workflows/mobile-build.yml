@@ -58,3 +58,4 @@ jobs:
 # Local Gradle build: no EAS queue.
 
 # Build trigger: catalog/image + 30th anniversary changes.
+# Verification trigger for latest collection grouping fix.
