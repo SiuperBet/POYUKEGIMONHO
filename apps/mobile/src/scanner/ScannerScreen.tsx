@@ -30,6 +30,7 @@ function getNativeScanner():NativeScanner|null{
 function line(a:Point,b:Point,w:number,h:number){const x1=a.x*w,y1=a.y*h,x2=b.x*w,y2=b.y*h,len=Math.hypot(x2-x1,y2-y1);return{left:(x1+x2-len)/2,top:(y1+y2-2)/2,width:len,transform:[{rotate:Math.atan2(y2-y1,x2-x1)*180/Math.PI+'deg'}]};}
 
 export function ScannerScreen({onExit,onCaptured,game='pokemon'}:Props){
+ const autoLaunchRef=useRef(false);
  const nativeScanner=useRef<NativeScanner|null>(null);
  const[permission,requestPermission]=useCameraPermissions();
  const[processing,setProcessing]=useState(false);
@@ -70,10 +71,11 @@ export function ScannerScreen({onExit,onCaptured,game='pokemon'}:Props){
    if(!nativeScanner.current)throw new Error('native scanner unavailable');
    const result=await nativeScanner.current.launchAsync();
    if(result?.uri)startReview(result.uri);
-  }catch{setError('Impossibile avviare lo scanner. Riprova.')}
+  }catch(error){const code=typeof error==='object'&&error&&'code' in error?String((error as {code?:unknown}).code):'';const message=error instanceof Error?error.message:String(error);setError(code?('Scanner: '+code):(message||'Impossibile avviare lo scanner. Riprova.'))}
   finally{setProcessing(false)}
  };
 
+ React.useEffect(()=>{if(Platform.OS!=='android'||autoLaunchRef.current)return;autoLaunchRef.current=true;void launchDocumentScanner();},[]);
  const manualCameraCapture=async()=>{
   if(!camera||processing)return;
   setProcessing(true);
