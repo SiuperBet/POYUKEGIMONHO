@@ -56,3 +56,5 @@ jobs:
           generate_release_notes: true
           files: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 # Local Gradle build: no EAS queue.
+
+# Build trigger: catalog/image + 30th anniversary changes.
