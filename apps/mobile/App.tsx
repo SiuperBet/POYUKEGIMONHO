@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {SafeAreaView,StatusBar,StyleSheet,Text,TouchableOpacity,View,ScrollView,Image,TextInput,ActivityIndicator,Platform,BackHandler} from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import {ScannerScreen} from './src/scanner/ScannerScreen';
 import {addGraded,addToCollection,loadCollection,loadGraded,saveCollection,saveGraded,updateGraded,updateCollection,deleteGraded,CollectionItem,GradedItem,Condition,CONDITIONS,estimateCardValueEUR,DefectRecord} from './src/data/store';
 import {getSets,getPokemonSetCards,getPokemonMasterSetCards,getYugiohSetCards,searchCards,hydrateSetDates,hydrateCardDates,mapWithConcurrency,warmScannerCatalog,POKEMON_LANGUAGE_LABEL,CatalogCard,CatalogSet,Game} from './src/data/catalog';
@@ -21,8 +22,51 @@ const englishImageFallback=(uri?:string)=>{
   if(!uri)return undefined;
   return normalizeTcgdexImage(uri);
 };
+const cardImagePromises=new Map<string,Promise<string|null>>();
+let cardImageQueueActive=0;
+const cardImageQueue:Array<{url:string;resolve:(uri:string|null)=>void}>=[];
+
+function drainCardImageQueue(){
+  while(cardImageQueueActive<4&&cardImageQueue.length){
+    const job=cardImageQueue.shift()!;
+    cardImageQueueActive++;
+    void (async()=>{
+      try{
+        const directory=(FileSystem.documentDirectory||'')+'cardgrade-card-cache/';
+        await FileSystem.makeDirectoryAsync(directory,{intermediates:true}).catch(()=>{});
+        let hash=0;
+        for(let i=0;i<job.url.length;i++)hash=((hash<<5)-hash+job.url.charCodeAt(i))|0;
+        const ext=(job.url.match(/\.(webp|png|jpe?g)(?:\?|$)/i)?.[1]||'webp').toLowerCase();
+        const target=directory+Math.abs(hash).toString(36)+'.'+ext;
+        const info=await FileSystem.getInfoAsync(target);
+        if(info.exists){job.resolve(target);return}
+        const result=await FileSystem.downloadAsync(job.url,target);
+        job.resolve(result.uri);
+      }catch{job.resolve(null)}
+      finally{cardImageQueueActive--;drainCardImageQueue()}
+    })();
+  }
+}
+function downloadCardImage(url:string):Promise<string|null>{
+  return new Promise(resolve=>{cardImageQueue.push({url,resolve});drainCardImageQueue()});
+}
+function cacheCardImage(candidates:string[]):Promise<string|null>{
+  const key=candidates.join('|');
+  const existing=cardImagePromises.get(key);
+  if(existing)return existing;
+  const promise=(async()=>{
+    for(const url of candidates){
+      const local=await downloadCardImage(url);
+      if(local)return local;
+    }
+    return null;
+  })();
+  cardImagePromises.set(key,promise);
+  return promise;
+}
 function SafeCardImage({uri,style,name}:{uri?:string;style:any;name:string}){
   const [attempt,setAttempt]=useState(0);
+  const [localUri,setLocalUri]=useState<string|null>(null);
   const candidates=useMemo(()=>{
     if(!uri)return [];
     const original=uri;
@@ -39,12 +83,18 @@ function SafeCardImage({uri,style,name}:{uri?:string;style:any;name:string}){
       original.replace(/\/(?:low|high)\.(?:webp|png|jpg|jpeg)$/i,'/low.webp')
     ])];
   },[uri]);
-  useEffect(()=>{setAttempt(0)},[uri]);
+  useEffect(()=>{
+    let alive=true;
+    setAttempt(0);setLocalUri(null);
+    if(!candidates.length)return;
+    void cacheCardImage(candidates).then(value=>{if(alive&&value)setLocalUri(value)});
+    return()=>{alive=false};
+  },[candidates]);
   const exhausted=attempt>=candidates.length;
-  const active=exhausted?undefined:candidates[attempt];
+  const active=localUri||(!exhausted?candidates[attempt]:undefined);
   if(!active)return <View style={[style,styles.imageFallbackBox]}><Text style={styles.imageFallback}>{String(name||'?').slice(0,1).toUpperCase()}</Text></View>;
   return <Image source={{uri:active}} style={style} resizeMode="contain"
-    onError={()=>setAttempt(value=>value+1)}/>;
+    onError={()=>{setLocalUri(null);setAttempt(value=>value+1)}}/>;
 }
 
 export default function App(){
@@ -103,20 +153,28 @@ export default function App(){
   useEffect(()=>{
     if(tab!=='collection'||collection.length===0){setCollectionCatalog({});return}
     const groups=Array.from(new Map<string,CollectionItem>(collection.map(c=>{
-      const key=(c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en');
-      return [key,c] as [string,CollectionItem];
+      const rawSetId=String(c.setId||'').replace(/^\w+:/,'').toLowerCase();
+      const isClassic30=c.game==='pokemon'&&(rawSetId==='30th-c'||/classic\s+collection|collezione\s+classica/i.test(String(c.setName||'')));
+      const canonicalSetId=isClassic30?'30th':String(c.setId||c.setName||'unknown');
+      const canonicalName=isClassic30
+        ? (String(c.language||'it')==='it'?'30° Anniversario':'30th Celebration')
+        : String(c.setName||'unknown');
+      const key=(c.game||game)+'::'+canonicalSetId+'::'+String(c.language||'en');
+      return [key,{...c,setId:canonicalSetId,setName:canonicalName}] as [string,CollectionItem];
     })).values());
     let cancelled=false;
     setCollectionCatalogLoading(true);
     mapWithConcurrency(groups,3,async c=>{
-      const key=(c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en');
+      const rawSetId=String(c.setId||'').replace(/^\w+:/,'').toLowerCase();
+      const canonicalSetId=c.game==='pokemon'&&rawSetId==='30th-c'?'30th':String(c.setId||c.setName||'unknown');
+      const key=(c.game||game)+'::'+canonicalSetId+'::'+String(c.language||'en');
       try{
         const storedLanguage=String(c.language||'en') as any;
         const displayLanguage=c.game==='pokemon'
           ? (['ja','zh-cn','zh-tw'].includes(storedLanguage)?storedLanguage:'it')
           : storedLanguage;
         const cards=c.game==='pokemon'
-          ? (masterSetMode ? await getPokemonMasterSetCards(String(c.setId||'').replace(/^\w+:/,''),displayLanguage) : await getPokemonSetCards(String(c.setId||'').replace(/^\w+:/,''),displayLanguage))
+          ? (masterSetMode ? await getPokemonMasterSetCards(canonicalSetId,displayLanguage) : await getPokemonSetCards(canonicalSetId,displayLanguage))
           : await getYugiohSetCards(c.setId||c.setName||'');
         return [key,cards] as const;
       }catch{return [key,[] as CatalogCard[]] as const}
