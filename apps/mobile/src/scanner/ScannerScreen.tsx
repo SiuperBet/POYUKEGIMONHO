@@ -118,7 +118,7 @@ function ReviewScreen({uri,quad,setQuad,processing,error,onBack,onConfirm}:{uri:
   <View style={styles.reviewHeader}><TouchableOpacity style={styles.secondary} onPress={onBack}><Text style={styles.secondaryText}>INDIETRO</Text></TouchableOpacity><View style={styles.headerTitle}><Text style={styles.kicker}>CARDGRADE</Text><Text style={styles.mode}>REGOLA CARTA</Text></View><TouchableOpacity style={styles.confirmTop} onPress={onConfirm} disabled={processing}><Text style={styles.confirmTopText}>CONFERMA</Text></TouchableOpacity></View>
   <View style={[styles.reviewFrame,{width:size,height:h}]}>
    <Image source={{uri}} style={StyleSheet.absoluteFill} resizeMode="contain"/>
-   <View pointerEvents="none" style={StyleSheet.absoluteFill}>{keys.map((k,i)=>{const a=quad[k],b=quad[keys[(i+1)%4]];return <View key={k} style={styles.reviewOverlay}><View style={styles.edgeReview}>{line(a,b,size,h)}</View></View>})}</View>
+   <View pointerEvents="none" style={StyleSheet.absoluteFill}>{keys.map((k,i)=>{const a=quad[k],b=quad[keys[(i+1)%4]];return <View key={k} style={styles.reviewOverlay}><View style={line(a,b,size,h)}/></View>})}</View>
    {keys.map(k=>{const p=quad[k];return <View key={k} {...responders[k].panHandlers} style={[styles.handle,{left:p.x*size-15,top:p.y*h-15}]}><View style={styles.handleDot}/></View>})}
   </View>
   <Text style={styles.reviewTitle}>Controlla bordi e angoli</Text>
