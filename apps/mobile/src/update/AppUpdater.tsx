@@ -1,5 +1,5 @@
 import React,{useEffect,useState} from 'react';
-import {Modal,StyleSheet,Text,TouchableOpacity,View,ActivityIndicator,Platform} from 'react-native';
+import {AppState,AppStateStatus,Modal,StyleSheet,Text,TouchableOpacity,View,ActivityIndicator,Platform} from 'react-native';
 import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -16,35 +16,73 @@ export function AppUpdater(){
   const [visible,setVisible]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
+  const lastCheckRef=React.useRef(0);
+  const installingRef=React.useRef(false);
 
-  const check=async()=>{
+  const downloadAndInstall=async(data:ReleaseInfo)=>{
+    if(Platform.OS!=='android'||installingRef.current)return;
+    const apk=data.assets?.find(a=>a.name.toLowerCase().endsWith('.apk'));
+    if(!apk)return;
+    installingRef.current=true;
+    setBusy(true);setError(null);
+    try{
+      const build=buildNumber(data.tag_name);
+      const localUri=(FileSystem.cacheDirectory||FileSystem.documentDirectory||'')+`poyukegimonho-update-${build}.apk`;
+      const result=await FileSystem.downloadAsync(apk.browser_download_url,localUri);
+      const contentUri=await FileSystem.getContentUriAsync(result.uri);
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW',{
+        data:contentUri,
+        type:'application/vnd.android.package-archive',
+        flags:1
+      });
+    }catch(e){
+      setError('Android richiede l’autorizzazione a installare aggiornamenti provenienti da questa app. Abilitala e riprova.');
+    }finally{
+      installingRef.current=false;
+      setBusy(false);
+    }
+  };
+
+  const check=async(force=false)=>{
     if(Platform.OS!=='android')return;
+    const now=Date.now();
+    // Avoid hammering the unauthenticated GitHub API while still checking again
+    // when the user brings the app back to the foreground.
+    if(!force&&now-lastCheckRef.current<10*60*1000)return;
+    lastCheckRef.current=now;
     try{
       const response=await fetch(RELEASES_API,{headers:{Accept:'application/vnd.github+json'}});
       if(!response.ok)return;
       const data=await response.json() as ReleaseInfo;
       const remote=buildNumber(data.tag_name);
       const current=Number(Application.nativeBuildVersion||0);
-      const apk=data.assets?.find(a=>a.name.endsWith('.apk'));
-      if(remote>current&&apk){setRelease(data);setVisible(true)}
+      const apk=data.assets?.find(a=>a.name.toLowerCase().endsWith('.apk'));
+      if(remote>current&&apk){
+        setRelease(data);
+        setVisible(true);
+        // Start the update automatically. Android will show its own final
+        // installation confirmation/permission screen; a normal APK cannot
+        // be installed silently by a regular Android application.
+        void downloadAndInstall(data);
+      }
     }catch{}
   };
 
-  useEffect(()=>{const t=setTimeout(()=>void check(),1200);return()=>clearTimeout(t)},[]);
+  useEffect(()=>{
+    const timer=setTimeout(()=>void check(true),1200);
+    const onStateChange=(state:AppStateStatus)=>{
+      if(state==='active')void check();
+    };
+    const sub=AppState.addEventListener('change',onStateChange);
+    return()=>{
+      clearTimeout(timer);
+      sub.remove();
+    };
+  },[]);
 
-  const install=async()=>{
-    if(!release||Platform.OS!=='android')return;
-    const apk=release.assets?.find(a=>a.name.endsWith('.apk'));
-    if(!apk)return;
-    setBusy(true);setError(null);
-    try{
-      const localUri=(FileSystem.cacheDirectory||FileSystem.documentDirectory||'')+`poyukegimonho-update-${buildNumber(release.tag_name)}.apk`;
-      const result=await FileSystem.downloadAsync(apk.browser_download_url,localUri);
-      const contentUri=await FileSystem.getContentUriAsync(result.uri);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW',{data:contentUri,type:'application/vnd.android.package-archive',flags:1});
-    }catch(e){
-      setError('Android richiede l’autorizzazione a installare aggiornamenti provenienti da questa app. Apri le impostazioni e abilitala, poi riprova.');
-    }finally{setBusy(false)}
+  const retry=async()=>{
+    if(release)await downloadAndInstall(release);
+    else await check(true);
   };
 
   const openInstallSettings=async()=>{
@@ -60,10 +98,9 @@ export function AppUpdater(){
     <View style={styles.backdrop}><View style={styles.card}>
       <Text style={styles.kicker}>POYUKEGIMONHO</Text>
       <Text style={styles.title}>NUOVO AGGIORNAMENTO</Text>
-      <Text style={styles.copy}>È disponibile una nuova versione dell’app. Non devi più andare su GitHub.</Text>
+      <Text style={styles.copy}>È stata rilevata una nuova build. L’aggiornamento viene scaricato automaticamente.</Text>
       <View style={styles.version}><Text style={styles.label}>BUILD INSTALLATA</Text><Text style={styles.value}>{Application.nativeBuildVersion||'—'}</Text><Text style={styles.label}>NUOVA BUILD</Text><Text style={styles.value}>#{build}</Text></View>
-      {busy?<View style={styles.loading}><ActivityIndicator/><Text style={styles.copy}>Download aggiornamento…</Text></View>:<>
-        <TouchableOpacity style={styles.primary} onPress={()=>void install()}><Text style={styles.primaryText}>AGGIORNA APP</Text></TouchableOpacity>
+      {busy?<View style={styles.loading}><ActivityIndicator/><Text style={styles.copy}>Download aggiornamento…</Text></View>:<><TouchableOpacity style={styles.primary} onPress={()=>void retry()}><Text style={styles.primaryText}>INSTALLA AGGIORNAMENTO</Text></TouchableOpacity>
         {error&&<><Text style={styles.error}>{error}</Text><TouchableOpacity style={styles.secondary} onPress={()=>void openInstallSettings()}><Text style={styles.secondaryText}>APRI IMPOSTAZIONI INSTALLAZIONE</Text></TouchableOpacity></>}
         <TouchableOpacity onPress={()=>setVisible(false)}><Text style={styles.later}>PIÙ TARDI</Text></TouchableOpacity>
       </>}
