@@ -17,13 +17,20 @@ const englishImageFallback=(uri?:string)=>{
   return uri.replace('assets.tcgdex.net/it/','assets.tcgdex.net/en/');
 };
 function SafeCardImage({uri,style,name}:{uri?:string;style:any;name:string}){
-  const [failed,setFailed]=useState(false);
-  const [fallbackFailed,setFallbackFailed]=useState(false);
-  const fallback=englishImageFallback(uri);
-  if(!uri||fallbackFailed)return <View style={[style,styles.imageFallbackBox]}><Text style={styles.imageFallback}>{name.slice(0,1)}</Text></View>;
-  const active=failed&&fallback&&fallback!==uri?fallback:uri;
-  return <Image source={{uri:active,cache:'force-cache'}} style={style} resizeMode="contain"
-    onError={()=>{if(!failed&&fallback&&fallback!==uri)setFailed(true);else setFallbackFailed(true)}}/>;
+  const [attempt,setAttempt]=useState(0);
+  const candidates=useMemo(()=>{
+    if(!uri)return [];
+    const list=[uri];
+    if(uri.includes('/low.webp'))list.push(uri.replace('/low.webp','/high.webp'));
+    const en=englishImageFallback(uri);
+    if(en&&!list.includes(en))list.push(en);
+    if(en&&en.includes('/low.webp'))list.push(en.replace('/low.webp','/high.webp'));
+    return [...new Set(list)];
+  },[uri]);
+  const active=candidates[Math.min(attempt,candidates.length-1)];
+  if(!active)return <View style={[style,styles.imageFallbackBox]}><Text style={styles.imageFallback}>{name.slice(0,1)}</Text></View>;
+  return <Image source={{uri:active}} style={style} resizeMode="contain"
+    onError={()=>setAttempt(value=>Math.min(value+1,candidates.length))}/>;
 }
 
 export default function App(){
@@ -108,17 +115,6 @@ export default function App(){
     return()=>{cancelled=true};
   },[tab,collection,masterSetMode]);
 
-  useEffect(()=>{
-    const urls=[...cards,...Object.values(collectionCatalog).flat()].map(c=>c.image).filter((u):u is string=>Boolean(u)).slice(0,36);
-    if(!urls.length)return;
-    let cancelled=false;
-    (async()=>{
-      for(let i=0;i<urls.length&&!cancelled;i+=8){
-        await Promise.all(urls.slice(i,i+8).map(u=>Image.prefetch(u).catch(()=>false)));
-      }
-    })();
-    return()=>{cancelled=true};
-  },[cards,collectionCatalog]);
   const totalValue=useMemo(()=>collection.reduce((sum,c)=>sum+estimateCardValueEUR(c.priceEUR,c.condition||'NM')*c.quantity,0),[collection]);
   const conditionTotals=useMemo(()=>CONDITIONS.map(c=>({condition:c,value:collection.filter(x=>x.condition===c).reduce((sum,x)=>sum+estimateCardValueEUR(x.priceEUR,c)*x.quantity,0),quantity:collection.filter(x=>x.condition===c).reduce((sum,x)=>sum+x.quantity,0)})).filter(x=>x.quantity>0),[collection]);
   const uniqueSets=new Set(collection.map(c=>c.setId||c.setName).filter(Boolean)).size;
