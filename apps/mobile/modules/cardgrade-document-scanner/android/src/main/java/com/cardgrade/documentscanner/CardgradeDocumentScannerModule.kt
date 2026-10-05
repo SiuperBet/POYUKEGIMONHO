@@ -23,7 +23,7 @@ class CardgradeDocumentScannerModule : Module() {
 
     AsyncFunction("launchAsync") { promise: Promise ->
       if (pendingPromise != null) {
-        throw Exceptions.CodedException("SCANNER_BUSY", "Document scanner is already open.")
+        throw IllegalStateException("Document scanner is already open.")
       }
 
       val activity = appContext.currentActivity ?: throw Exceptions.MissingActivity()
