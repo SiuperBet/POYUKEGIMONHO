@@ -93,7 +93,7 @@ export async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)
 
 export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):Promise<CatalogSet[]>{
   if(game==='pokemon'){
-    return cacheNonEmpty('catalog:pokemon:sets:v8',async()=>{
+    return cacheNonEmpty('catalog:pokemon:sets:v9',async()=>{
       const localeResults=await mapWithConcurrency(POKEMON_LANGUAGES,4,async(language)=>{
         try{
           const sets=await getJson<any[]>('https://api.tcgdex.net/v2/'+language+'/sets');
@@ -122,22 +122,19 @@ export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):
         [...bucket].sort((a,b)=>(POKEMON_LANGUAGE_PRIORITY[String(a.language||'en')]??99)-(POKEMON_LANGUAGE_PRIORITY[String(b.language||'en')]??99))[0]
       ).filter(Boolean) as CatalogSet[];
 
-      // "Classic Collection" is a 30-card subset of the 30th Celebration expansion,
-      // not a standalone expansion. Keep one expansion entry and load the subset inside it.
-      const is30th=(name:string)=>/(30th\s+celebration|30(?:°|º)?\s*(?:anniversary|anniversario))/i.test(name);
-      const isClassic=(name:string)=>/(classic\s+collection|collezione\s+classica)/i.test(name);
-      const parent=selected.find(s=>is30th(String(s.name))&&!isClassic(String(s.name)));
-      const classic=parent?selected.filter(s=>{
-        if(!isClassic(String(s.name))||s.id===parent.id)return false;
-        const sameSeries=String(s.seriesId||'').toLowerCase()===String(parent.seriesId||'').toLowerCase();
-        const sameDate=String(s.releaseDate||'')!==''&&String(s.releaseDate||'')===String(parent.releaseDate||'');
-        return is30th(String(s.name))||sameSeries||sameDate;
-      }):[];
+      // TCGdex exposes the 30-card Classic Collection as technical set 30th-c.
+      // In CARDGRADE it is always a subset of the 30th Celebration parent.
+      const sourceId=(s:CatalogSet)=>String(s.sourceId||s.id).replace(/^\w+:/,'').toLowerCase();
+      const setName=(s:CatalogSet)=>String(s.name||'').toLowerCase();
+      const is30thParent=(s:CatalogSet)=>sourceId(s)==='30th'||/30th\s+celebration|30(?:°|º)?\s*(?:anniversary|anniversario)/i.test(setName(s));
+      const is30thClassic=(s:CatalogSet)=>sourceId(s)==='30th-c'||/classic\s+collection|collezione\s+classica/i.test(setName(s));
+      const parent=selected.find(is30thParent);
+      const classic=selected.filter(s=>is30thClassic(s)&&s.id!==parent?.id);
       if(parent&&classic.length){
         const sameLanguage=classic.find(s=>String(s.language||'')===String(parent.language||''));
         if(sameLanguage){
-          parent.subSetIds=[String(parent.sourceId||parent.id).replace(/^\w+:/,''),String(sameLanguage.sourceId||sameLanguage.id).replace(/^\w+:/,'')];
-          parent.cardCount=(Number(parent.cardCount)||0)+(Number(sameLanguage.cardCount)||0);
+          parent.subSetIds=[sourceId(parent)];
+          parent.cardCount=(Number(parent.cardCount)||0)+(Number(sameLanguage.cardCount)||30);
         }
       }
       const hiddenClassicIds=new Set(classic.map(s=>s.id));
@@ -166,7 +163,7 @@ export async function hydrateSetDates(game:Game,sets:CatalogSet[]):Promise<Catal
   });
   const byId=new Map(details.map(s=>[s.id,s]));
   const hydrated=sets.map(s=>byId.get(s.id)||s);
-  void AsyncStorage.setItem('catalog:pokemon:sets:v8',JSON.stringify(hydrated));
+  void AsyncStorage.setItem('catalog:pokemon:sets:v9',JSON.stringify(hydrated));
   return hydrated;
 }
 
@@ -184,7 +181,7 @@ function priceFromYgo(card:any){
 }
 
 export async function getPokemonSetCards(setId:string,language:PokemonLanguage='it'):Promise<CatalogCard[]>{
-  const key='catalog:pokemon:set:v5:'+language+':'+setId;
+  const key='catalog:pokemon:set:v6:'+language+':'+setId;
   return cacheNonEmpty(key,async()=>{
     let set:any={};
     for(let attempt=0;attempt<3;attempt++){
@@ -201,19 +198,29 @@ export async function getPokemonSetCards(setId:string,language:PokemonLanguage='
     }
     const seriesId=String(set.serie?.id||'');
     const releaseDate=typeof set.releaseDate==='string'?set.releaseDate:(set.releaseDate?.[language]||set.releaseDate?.en);
-    return cards.map((brief:any)=>{
+    const baseCards=cards.map((brief:any)=>{
       const localId=numberOf(brief.localId);
       const source=typeof brief.image==='string'&&brief.image.length>0?brief.image.replace(/\/+$/,''):'';
       const legacy=language==='en'?legacyPokemonImage(setId,localId):undefined;
       const image=legacy||(source?source+'/low.webp':pokemonImage(language,setId,seriesId,localId,'low'));
       const rawId=String(brief.id||setId+'-'+localId);
       return {id:pokemonCardId(language,rawId),sourceId:rawId,printingId:pokemonCardId(language,rawId),language,game:'pokemon' as const,name:brief.name||'Unknown',setId,setName:set.name,number:localId,image,releaseDate};
-    }).filter((c:any)=>c.name!=='Unknown'||c.id).sort((x:any,y:any)=>String(x.number).localeCompare(String(y.number),undefined,{numeric:true,sensitivity:'base'}));
+    }).filter((c:any)=>c.name!=='Unknown'||c.id).sort((x:any,y:any)=>String(x.number).localeCompare(String(y.number),undefined,{numeric:true,sensitivity:'base'}));;
+    if(String(setId).toLowerCase()==='30th'){
+      const classic=await getPokemonSetCards('30th-c',language).catch(()=>[] as CatalogCard[]);
+      const parentName=String(set.name||'30th Celebration');
+      const normalizedClassic=classic.map(card=>({...card,setId:'30th',setName:parentName,releaseDate:releaseDate||card.releaseDate}));
+      const merged=[...baseCards,...normalizedClassic];
+      const seen=new Set<string>();
+      return merged.filter(card=>{if(seen.has(card.id))return false;seen.add(card.id);return true});
+    }
+    return baseCards;
+
   });
 }
 
 export async function getPokemonMasterSetCards(setId:string,language:PokemonLanguage='it'):Promise<CatalogCard[]>{
-  const key='catalog:pokemon:masterset:v1:'+language+':'+setId;
+  const key='catalog:pokemon:masterset:v2:'+language+':'+setId;
   return cacheNonEmpty(key,async()=>{
     const base=await getPokemonSetCards(setId,language);
     const detailed=await mapWithConcurrency(base,8,async(card)=>{
