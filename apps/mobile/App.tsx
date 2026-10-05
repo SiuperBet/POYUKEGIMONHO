@@ -288,9 +288,14 @@ export default function App(){
       if(!g.cards.some(x=>x.id===c.id))g.cards.push(c);
     }
     for(const [key,cards] of Object.entries(collectionCatalog)){
-      const first=collection.find(c=>((c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en'))===key);
+      const first=collection.find(c=>{
+        const rawSetId=String(c.setId||'').replace(/^\w+:/,'').toLowerCase();
+        const isClassic30=c.game==='pokemon'&&(rawSetId==='30th-c'||/classic\s+collection|collezione\s+classica/i.test(String(c.setName||'')));
+        const canonicalSetId=isClassic30?'30th':String(c.setId||c.setName||'unknown');
+        return (c.game||game)+'::'+canonicalSetId+'::'+String(c.language||'en')===key;
+      });
       if(!first)continue;
-      const g=addGroup(first);
+      const g=addGroup({...first,setId:key.split('::')[1],setName:String(first.language||'it')==='it'&&key.split('::')[1]==='30th'?'30° Anniversario':key.split('::')[1]==='30th'?'30th Celebration':first.setName});
       const merged=[...cards,...g.cards.filter(x=>!cards.some(y=>printingIdentity(y.id)===printingIdentity(x.id)))];
       g.cards=merged;g.expected=cards.length;
     }
