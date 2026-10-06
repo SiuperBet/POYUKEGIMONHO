@@ -38,7 +38,10 @@ export async function loadCollection(){
   }
   const legacy=await read<CollectionItem[]>(LEGACY_COLLECTION,[]);
   if(!legacy.length)return [];
-  const migrated=await Promise.all(legacy.map(async item=>normalize30thCard({...item,image:await persistImage(item.image),backImage:await persistImage(item.backImage)}) as CollectionItem));
+  const migrated=await Promise.all(legacy.map(async item=>{
+    const withImages={...item,image:await persistImage(item.image),backImage:await persistImage(item.backImage)} as CollectionItem;
+    return {...withImages,...normalize30thCard(withImages)};
+  }));
   await AsyncStorage.setItem(COLLECTION,JSON.stringify(migrated));
   return migrated;
 }
