@@ -20,8 +20,8 @@ const LEGACY_COLLECTION='poyukegimonho:mobile:collection:v1';
 const GRADED='poyukegimonho:mobile:graded:v1';
 const normalize30thCard=(card:CatalogCard):CatalogCard=>{
   if(card.game!=='pokemon')return card;
-  const rawSetId=String(card.setId||'').replace(/^\\w+:/,'').toLowerCase();
-  const classic=rawSetId==='30th-c'||/classic\\s+collection|collezione\\s+classica/i.test(String(card.setName||''));
+  const rawSetId=String(card.setId||'').replace(/^\w+:/,'').toLowerCase();
+  const classic=rawSetId==='30th-c'||/classic\s+collection|collezione\s+classica/i.test(String(card.setName||''));
   if(!classic)return card;
   return {...card,setId:'30th',setName:String(card.language||'it')==='it'?'30° Anniversario':'30th Celebration'};
 };
