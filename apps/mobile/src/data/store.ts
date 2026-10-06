@@ -18,19 +18,40 @@ export type GradedItem={id:string;image?:string;backImage?:string;grade:string;s
 const COLLECTION='poyukegimonho:mobile:collection:v2';
 const LEGACY_COLLECTION='poyukegimonho:mobile:collection:v1';
 const GRADED='poyukegimonho:mobile:graded:v1';
+const normalize30thCard=(card:CatalogCard):CatalogCard=>{
+  if(card.game!=='pokemon')return card;
+  const rawSetId=String(card.setId||'').replace(/^\\w+:/,'').toLowerCase();
+  const classic=rawSetId==='30th-c'||/classic\\s+collection|collezione\\s+classica/i.test(String(card.setName||''));
+  if(!classic)return card;
+  return {...card,setId:'30th',setName:String(card.language||'it')==='it'?'30° Anniversario':'30th Celebration'};
+};
 const persistImage=async(uri?:string)=>{if(!uri||!uri.startsWith('file://'))return uri;try{const dir=(FileSystem.documentDirectory||'')+'cardgrade-images/';await FileSystem.makeDirectoryAsync(dir,{intermediates:true}).catch(()=>{});const ext=(uri.match(/\.(png|jpe?g|webp)$/i)?.[1]||'jpg').toLowerCase();const target=dir+Date.now()+'-'+Math.random().toString(36).slice(2)+'.'+ext;await FileSystem.copyAsync({from:uri,to:target});return target}catch{return uri}};
 
 async function read<T>(key:string,fallback:T):Promise<T>{const raw=await AsyncStorage.getItem(key);if(!raw)return fallback;try{return JSON.parse(raw) as T}catch{return fallback}}
-export async function loadCollection(){const current=await read<CollectionItem[]>(COLLECTION,[]);if(current.length)return current;const legacy=await read<CollectionItem[]>(LEGACY_COLLECTION,[]);if(!legacy.length)return [];const migrated=await Promise.all(legacy.map(async item=>({...item,image:await persistImage(item.image),backImage:await persistImage(item.backImage)})));await AsyncStorage.setItem(COLLECTION,JSON.stringify(migrated));return migrated}
+export async function loadCollection(){
+  const current=await read<CollectionItem[]>(COLLECTION,[]);
+  if(current.length){
+    const normalized=current.map(item=>normalize30thCard(item) as CollectionItem);
+    const changed=normalized.some((item,i)=>item.setId!==current[i].setId||item.setName!==current[i].setName);
+    if(changed)await AsyncStorage.setItem(COLLECTION,JSON.stringify(normalized));
+    return normalized;
+  }
+  const legacy=await read<CollectionItem[]>(LEGACY_COLLECTION,[]);
+  if(!legacy.length)return [];
+  const migrated=await Promise.all(legacy.map(async item=>normalize30thCard({...item,image:await persistImage(item.image),backImage:await persistImage(item.backImage)}) as CollectionItem));
+  await AsyncStorage.setItem(COLLECTION,JSON.stringify(migrated));
+  return migrated;
+}
 export const loadGraded=()=>read<GradedItem[]>(GRADED,[]);
 export async function saveCollection(items:CollectionItem[]){await AsyncStorage.setItem(COLLECTION,JSON.stringify(items))}
 export async function saveGraded(items:GradedItem[]){await AsyncStorage.setItem(GRADED,JSON.stringify(items))}
 export async function addToCollection(card:CatalogCard,condition:Condition='Da verificare',quantity=1,scanImage?:string,backImage?:string,visualAnalysis?:VisualAnalysisSnapshot,professionalAnalysis?:ProfessionalAnalysis){
   const items=await loadCollection();
+  const normalizedCard=normalize30thCard(card);
   const durableImage=await persistImage(scanImage);const durableBack=await persistImage(backImage);
-  const index=items.findIndex(x=>x.id===card.id&&x.condition===condition);
-  if(index>=0)items[index]={...items[index],quantity:items[index].quantity+quantity,image:durableImage||items[index].image||card.image,backImage:durableBack||items[index].backImage,visualAnalysis:visualAnalysis||items[index].visualAnalysis,professionalAnalysis:professionalAnalysis||items[index].professionalAnalysis};
-  else items.unshift({...card,quantity,condition,addedAt:new Date().toISOString(),image:durableImage||card.image,backImage:durableBack,visualAnalysis,professionalAnalysis});
+  const index=items.findIndex(x=>x.id===normalizedCard.id&&x.condition===condition);
+  if(index>=0)items[index]={...items[index],...normalizedCard,quantity:items[index].quantity+quantity,image:durableImage||items[index].image||normalizedCard.image,backImage:durableBack||items[index].backImage,visualAnalysis:visualAnalysis||items[index].visualAnalysis,professionalAnalysis:professionalAnalysis||items[index].professionalAnalysis};
+  else items.unshift({...normalizedCard,quantity,condition,addedAt:new Date().toISOString(),image:durableImage||normalizedCard.image,backImage:durableBack,visualAnalysis,professionalAnalysis});
   await saveCollection(items);return items;
 }
 export async function addGraded(item:GradedItem){const items=await loadGraded();items.unshift({...item,image:await persistImage(item.image),backImage:await persistImage(item.backImage)});await saveGraded(items);return items}
