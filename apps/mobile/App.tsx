@@ -74,10 +74,10 @@ function SafeCardImage({uri,style,name}:{uri?:string;style:any;name:string}){
     const isTcgdex=base.includes('assets.tcgdex.net/');
     if(!isTcgdex)return [original];
     return [...new Set([
-      base+'/high.webp',
       base+'/low.webp',
-      base+'/high.png',
+      base+'/high.webp',
       base+'/low.png',
+      base+'/high.png',
       original,
       original.replace(/\/(?:low|high)\.(?:webp|png|jpg|jpeg)$/i,'/high.webp'),
       original.replace(/\/(?:low|high)\.(?:webp|png|jpg|jpeg)$/i,'/low.webp')
@@ -277,7 +277,15 @@ export default function App(){
   const collectionGroups=useMemo(()=>{
 
     const map=new Map<string,{key:string;game:Game;setId?:string;setName:string;language?:string;cards:CatalogCard[];owned:number;expected:number}>();
-    const addGroup=(c:CatalogCard)=>{
+    const normalizeCollectionCard=(c:CatalogCard):CatalogCard=>{
+      if(c.game!=='pokemon')return c;
+      const rawSetId=String(c.setId||'').replace(/^\w+:/,'').toLowerCase();
+      const classic=rawSetId==='30th-c'||/classic\s+collection|collezione\s+classica/i.test(String(c.setName||''));
+      if(!classic)return c;
+      return {...c,setId:'30th',setName:String(c.language||'it')==='it'?'30° Anniversario':'30th Celebration'};
+    };
+    const addGroup=(source:CatalogCard)=>{
+      const c=normalizeCollectionCard(source);
       const key=(c.game||game)+'::'+String(c.setId||c.setName||'unknown')+'::'+String(c.language||'en');
       if(!map.has(key))map.set(key,{key,game:c.game,setId:c.setId,setName:c.setName||'Set non identificato',language:c.language,cards:[],owned:0,expected:0});
       return map.get(key)!;
@@ -289,13 +297,12 @@ export default function App(){
     }
     for(const [key,cards] of Object.entries(collectionCatalog)){
       const first=collection.find(c=>{
-        const rawSetId=String(c.setId||'').replace(/^\w+:/,'').toLowerCase();
-        const isClassic30=c.game==='pokemon'&&(rawSetId==='30th-c'||/classic\s+collection|collezione\s+classica/i.test(String(c.setName||'')));
-        const canonicalSetId=isClassic30?'30th':String(c.setId||c.setName||'unknown');
-        return (c.game||game)+'::'+canonicalSetId+'::'+String(c.language||'en')===key;
+        const normalized=normalizeCollectionCard(c);
+        return (normalized.game||game)+'::'+String(normalized.setId||normalized.setName||'unknown')+'::'+String(normalized.language||'en')===key;
       });
       if(!first)continue;
-      const g=addGroup({...first,setId:key.split('::')[1],setName:String(first.language||'it')==='it'&&key.split('::')[1]==='30th'?'30° Anniversario':key.split('::')[1]==='30th'?'30th Celebration':first.setName});
+      const normalizedFirst=normalizeCollectionCard(first);
+      const g=addGroup({...normalizedFirst,setId:key.split('::')[1],setName:key.split('::')[1]==='30th'?(String(normalizedFirst.language||'it')==='it'?'30° Anniversario':'30th Celebration'):normalizedFirst.setName});
       const merged=[...cards,...g.cards.filter(x=>!cards.some(y=>printingIdentity(y.id)===printingIdentity(x.id)))];
       g.cards=merged;g.expected=cards.length;
     }
