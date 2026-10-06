@@ -93,7 +93,7 @@ export async function mapWithConcurrency<T,R>(items:T[],limit:number,fn:(item:T)
 
 export async function getSets(game:Game,preferredLanguage:PokemonLanguage='it'):Promise<CatalogSet[]>{
   if(game==='pokemon'){
-    return cacheNonEmpty('catalog:pokemon:sets:v9',async()=>{
+    return cacheNonEmpty('catalog:pokemon:sets:v10',async()=>{
       const localeResults=await mapWithConcurrency(POKEMON_LANGUAGES,4,async(language)=>{
         try{
           const sets=await getJson<any[]>('https://api.tcgdex.net/v2/'+language+'/sets');
@@ -181,7 +181,7 @@ function priceFromYgo(card:any){
 }
 
 export async function getPokemonSetCards(setId:string,language:PokemonLanguage='it'):Promise<CatalogCard[]>{
-  const key='catalog:pokemon:set:v6:'+language+':'+setId;
+  const key='catalog:pokemon:set:v7:'+language+':'+setId;
   return cacheNonEmpty(key,async()=>{
     let set:any={};
     for(let attempt=0;attempt<3;attempt++){
@@ -220,7 +220,7 @@ export async function getPokemonSetCards(setId:string,language:PokemonLanguage='
 }
 
 export async function getPokemonMasterSetCards(setId:string,language:PokemonLanguage='it'):Promise<CatalogCard[]>{
-  const key='catalog:pokemon:masterset:v2:'+language+':'+setId;
+  const key='catalog:pokemon:masterset:v3:'+language+':'+setId;
   return cacheNonEmpty(key,async()=>{
     const base=await getPokemonSetCards(setId,language);
     const detailed=await mapWithConcurrency(base,8,async(card)=>{
